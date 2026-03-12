@@ -58,14 +58,13 @@ const ProductCard = ({ product }: { product: Product }) => {
       <Button
         variant="ghost"
         size="icon"
-        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
+        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10 opacity-100 !important"
         onClick={(e) => {
           e.preventDefault();
           toggleWishlist(product);
         }}
-        disabled={wishlistLoading}
       >
-        <Heart className={`h-4 w-4 transition-all ${wishlistLoading ? 'text-muted-foreground opacity-50' : isWishlisted ? 'fill-primary text-primary' : 'text-foreground'}`} />
+        <Heart className={`h-4 w-4 transition-all ${isWishlisted ? 'fill-primary text-primary scale-110' : 'text-foreground'}`} />
       </Button>
       <div className="p-4">
         <p className="text-xs text-muted-foreground capitalize mb-1">{product.category.replace("-", " & ").replace("fruits & vegetables", "Fruits & Vegetables")}</p>

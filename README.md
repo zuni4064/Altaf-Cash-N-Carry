@@ -13,3 +13,5 @@ Manage customer orders and update order status
 Monitor store inventory
 
 The project focuses on modern UI/UX, responsive design, and efficient database connectivity to ensure smooth performance for both customers and administrators.
+
+Here's the demo: https://altaf-cash-n-carry.vercel.app/
