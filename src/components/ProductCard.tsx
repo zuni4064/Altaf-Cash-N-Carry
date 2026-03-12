@@ -7,7 +7,6 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { StarRating } from "@/components/StarRating";
-import { useEffect, useRef } from "react";
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -20,31 +19,15 @@ const badgeStyles: Record<string, string> = {
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
-  const { toggleWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
-  
-  const buttonRef = useRef<HTMLDivElement>(null);
+  const { toggleWishlist, isInWishlist } = useWishlist();
 
   const cartItem = items.find(i => i.product.id === product.id);
-
   const isWishlisted = isInWishlist(product.id);
   const imageSrc = product.image || PLACEHOLDER_IMAGE;
 
   const finalPrice = product.discount
     ? Math.round(product.price * (1 - product.discount / 100))
     : product.price;
-
-  // Log to see what's happening
-  useEffect(() => {
-    console.log(`Product ${product.id} - wishlistLoading:`, wishlistLoading);
-    console.log(`Product ${product.id} - isWishlisted:`, isWishlisted);
-  }, [product.id, wishlistLoading, isWishlisted]);
-
-  // Ensure button is always visible
-  useEffect(() => {
-    if (buttonRef.current) {
-      console.log(`Button for product ${product.id} is in DOM`);
-    }
-  }, [product.id]);
 
   return (
     <motion.div
@@ -78,37 +61,27 @@ const ProductCard = ({ product }: { product: Product }) => {
         )}
       </Link>
 
-      {/* Wishlist Button - Always render with ref to track it */}
-      <div 
-        ref={buttonRef}
-        className="absolute top-2 right-2 z-50"
-        style={{ display: 'block' }} // Force display
+      {/* Wishlist Button - Always visible */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleWishlist(product);
+        }}
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log(`Wishlist button clicked for product ${product.id}`);
-            toggleWishlist(product);
-          }}
-          disabled={wishlistLoading}
-        >
-          <Heart
-            className={`h-4 w-4 transition-all ${
-              wishlistLoading 
-                ? "text-muted-foreground animate-pulse" 
-                : isWishlisted
-                  ? "fill-primary text-primary scale-110"
-                  : "text-foreground"
-            }`}
-          />
-        </Button>
-      </div>
+        <Heart
+          className={`h-4 w-4 transition-all ${
+            isWishlisted
+              ? "fill-primary text-primary scale-110"
+              : "text-foreground"
+          }`}
+        />
+      </Button>
 
-      {/* Rest of the component remains the same */}
+      {/* Content */}
       <div className="p-4">
         <p className="text-xs text-muted-foreground capitalize mb-1">
           {product.category.replace("-", " & ").replace("fruits & vegetables", "Fruits & Vegetables")}

@@ -29,7 +29,6 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const [wishlist, setWishlist] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
-    const [initialLoadDone, setInitialLoadDone] = useState(false);
 
     // Load wishlist from localStorage immediately
     useEffect(() => {
@@ -41,7 +40,6 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         } catch {
             console.warn("Invalid wishlist JSON");
         } finally {
-            setInitialLoadDone(true);
             setLoading(false);
         }
     }, [storageKey]);
