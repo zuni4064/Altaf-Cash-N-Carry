@@ -24,22 +24,28 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
-export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const storageKey = `wishlist_${user?.id || 'guest'}`;
     const [loading, setLoading] = useState(false);
-    const [wishlist, setWishlist] = useState<Product[]>(() => {
-        try {
-            const stored = localStorage.getItem("wishlist");
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [wishlist, setWishlist] = useState<Product[]>([]);
 
-    // Persist to localStorage
-    const persistToLocalStorage = (items: Product[]) => {
-        localStorage.setItem("wishlist", JSON.stringify(items));
-    };
+    // Load from user-specific localStorage on init/user change
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(storageKey);
+            if (stored) {
+                setWishlist(JSON.parse(stored));
+            }
+        } catch {
+            // Invalid JSON, ignore
+        }
+    }, [storageKey]);
+
+    // Persist to user-specific localStorage
+    const persistToLocalStorage = useCallback((items: Product[]) => {
+        localStorage.setItem(storageKey, JSON.stringify(items));
+    }, [storageKey]);
 
     // Fetch wishlist from Supabase when user logs in
     useEffect(() => {

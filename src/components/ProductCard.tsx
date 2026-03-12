@@ -20,7 +20,7 @@ const badgeStyles: Record<string, string> = {
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
-  const { toggleWishlist, isInWishlist } = useWishlist();
+  const { toggleWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
   const cartItem = items.find(i => i.product.id === product.id);
   const isWishlisted = isInWishlist(product.id);
 
@@ -63,8 +63,9 @@ const ProductCard = ({ product }: { product: Product }) => {
           e.preventDefault();
           toggleWishlist(product);
         }}
+        disabled={wishlistLoading}
       >
-        <Heart className={`h-4 w-4 transition-colors ${isWishlisted ? 'fill-primary text-primary' : 'text-foreground'}`} />
+        <Heart className={`h-4 w-4 transition-all ${wishlistLoading ? 'text-muted-foreground opacity-50' : isWishlisted ? 'fill-primary text-primary' : 'text-foreground'}`} />
       </Button>
       <div className="p-4">
         <p className="text-xs text-muted-foreground capitalize mb-1">{product.category.replace("-", " & ").replace("fruits & vegetables", "Fruits & Vegetables")}</p>
