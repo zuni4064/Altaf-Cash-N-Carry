@@ -61,10 +61,12 @@ const ProductCard = ({ product }: { product: Product }) => {
         )}
       </Link>
 
-      {/* Wishlist Button - Always visible */}
+      {/* Wishlist Button - Using Button component with aria-label */}
       <Button
         variant="ghost"
         size="icon"
+        aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+        title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
         className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
         onClick={(e) => {
           e.preventDefault();
@@ -141,6 +143,8 @@ const ProductCard = ({ product }: { product: Product }) => {
                       ? removeFromCart(product.id)
                       : updateQuantity(product.id, cartItem.quantity - 1)
                   }
+                  aria-label="Decrease quantity"
+                  title="Decrease quantity"
                 >
                   <Minus className="h-3 w-3" />
                 </Button>
@@ -155,6 +159,8 @@ const ProductCard = ({ product }: { product: Product }) => {
                   className="h-7 w-7"
                   disabled={product.stock !== undefined && cartItem.quantity >= product.stock}
                   onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                  aria-label="Increase quantity"
+                  title="Increase quantity"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -164,6 +170,8 @@ const ProductCard = ({ product }: { product: Product }) => {
                 size="sm"
                 onClick={() => addToCart(product)}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
+                aria-label="Add to cart"
+                title="Add to cart"
               >
                 <ShoppingCart className="h-4 w-4 mr-1" /> Add
               </Button>
