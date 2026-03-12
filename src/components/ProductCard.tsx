@@ -1,190 +1,224 @@
-import { Product } from "@/data/products";
+import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { products } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, Heart } from "lucide-react";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { ShoppingCart, Heart, Minus, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { StarRating } from "@/components/StarRating";
+import { motion, AnimatePresence } from "framer-motion";
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
-const badgeStyles: Record<string, string> = {
-  bestseller: "bg-secondary text-secondary-foreground",
-  discount: "bg-destructive text-destructive-foreground",
-  new: "bg-success text-success-foreground",
-  "out-of-stock": "bg-muted text-muted-foreground",
-};
-
-const ProductCard = ({ product }: { product: Product }) => {
-  const { items, addToCart, updateQuantity, removeFromCart } = useCart();
+const ProductDetail = () => {
+  const { id } = useParams<{ id: string }>();
+  const product = products.find(p => p.id === id);
+  
+  const { addToCart, items, updateQuantity, removeFromCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  
+  if (!product) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold">Product not found</h1>
+      </div>
+    );
+  }
 
   const cartItem = items.find(i => i.product.id === product.id);
   const isWishlisted = isInWishlist(product.id);
-  const imageSrc = product.image || PLACEHOLDER_IMAGE;
-
+  
+  // Use single image since 'images' doesn't exist on Product type
+  const productImages = [product.image];
+  
   const finalPrice = product.discount
     ? Math.round(product.price * (1 - product.discount / 100))
     : product.price;
 
+  const handleAddToCart = () => {
+    // Add the product with the selected quantity
+    for (let i = 0; i < quantity; i++) {
+      addToCart(product);
+    }
+  };
+
+  const nextImage = () => {
+    setSelectedImage((prev) => (prev + 1) % productImages.length);
+  };
+
+  const prevImage = () => {
+    setSelectedImage((prev) => (prev - 1 + productImages.length) % productImages.length);
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="group bg-card rounded-lg border border-border overflow-hidden hover-lift relative"
-    >
-      {/* Image */}
-      <Link to={`/product/${product.id}`} className="block relative overflow-hidden aspect-square">
-        <img
-          src={imageSrc}
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE;
-          }}
-        />
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        {/* Image Gallery - Optimized size */}
+        <div className="space-y-4">
+          {/* Main Image - Reduced size with max-width */}
+          <div className="relative aspect-square rounded-lg overflow-hidden bg-muted max-w-[500px] mx-auto lg:mx-0">
+            <AnimatePresence mode="wait">
+              <motion.img
+                key={selectedImage}
+                src={productImages[selectedImage] || PLACEHOLDER_IMAGE}
+                alt={product.name}
+                className="w-full h-full object-contain p-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                loading="lazy"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE;
+                }}
+              />
+            </AnimatePresence>
 
-        {product.badge && (
-          <Badge className={`absolute top-3 left-3 ${badgeStyles[product.badge]}`}>
-            {product.badge === "discount"
-              ? `-${product.discount}%`
-              : product.badge === "out-of-stock"
-              ? "Out of Stock"
-              : product.badge === "bestseller"
-              ? "Best Seller"
-              : "New"}
-          </Badge>
-        )}
-      </Link>
-
-      {/* Wishlist Button - Using Button component with aria-label */}
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-        title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleWishlist(product);
-        }}
-      >
-        <Heart
-          className={`h-4 w-4 transition-all ${
-            isWishlisted
-              ? "fill-primary text-primary scale-110"
-              : "text-foreground"
-          }`}
-        />
-      </Button>
-
-      {/* Content */}
-      <div className="p-4">
-        <p className="text-xs text-muted-foreground capitalize mb-1">
-          {product.category.replace("-", " & ").replace("fruits & vegetables", "Fruits & Vegetables")}
-        </p>
-
-        <Link to={`/product/${product.id}`}>
-          <h3 className="font-semibold text-sm mb-1 hover:text-primary transition-colors line-clamp-1">
-            {product.name}
-          </h3>
-        </Link>
-
-        {product.rating !== undefined && (
-          <div className="mb-2">
-            <StarRating rating={product.rating} reviewCount={product.reviewCount} />
-          </div>
-        )}
-
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
-          {product.description}
-        </p>
-
-        <div className="flex items-center justify-between">
-          {/* Price */}
-          <div>
-            <span className="font-bold text-primary">PKR {finalPrice}</span>
-
-            {product.discount && (
-              <span className="text-xs text-muted-foreground line-through ml-1">
-                PKR {product.price}
-              </span>
+            {/* Only show navigation if there are multiple images */}
+            {productImages.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full hover:bg-background/90 transition-colors"
+                  aria-label="Previous image"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm p-2 rounded-full hover:bg-background/90 transition-colors"
+                  aria-label="Next image"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
             )}
+          </div>
+        </div>
 
-            <span className="text-xs text-muted-foreground">/{product.unit}</span>
+        {/* Product Info */}
+        <div className="space-y-6">
+          {/* Category */}
+          <p className="text-sm text-muted-foreground capitalize">
+            {product.category.replace("-", " & ")}
+          </p>
 
-            <div className="mt-2">
-              <Badge
-                variant={(product.stock ?? 0) > 0 ? "outline" : "destructive"}
-                className={(product.stock ?? 0) > 0 ? "text-success border-success bg-success/10" : ""}
+          {/* Title */}
+          <h1 className="text-3xl lg:text-4xl font-bold">{product.name}</h1>
+
+          {/* Rating */}
+          {product.rating !== undefined && (
+            <div className="flex items-center gap-2">
+              <StarRating rating={product.rating} reviewCount={product.reviewCount} />
+            </div>
+          )}
+
+          {/* Price */}
+          <div className="flex items-baseline gap-3">
+            <span className="text-3xl font-bold text-primary">PKR {finalPrice}</span>
+            {product.discount && (
+              <>
+                <span className="text-lg text-muted-foreground line-through">
+                  PKR {product.price}
+                </span>
+                <Badge variant="destructive">-{product.discount}%</Badge>
+              </>
+            )}
+            <span className="text-sm text-muted-foreground">/{product.unit}</span>
+          </div>
+
+          {/* Stock Status */}
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={(product.stock ?? 0) > 0 ? "outline" : "destructive"}
+              className={(product.stock ?? 0) > 0 ? "text-success border-success bg-success/10" : ""}
+            >
+              {(product.stock ?? 0) > 0
+                ? `${product.stock} in stock`
+                : "Out of stock"}
+            </Badge>
+          </div>
+
+          {/* Description */}
+          <div className="prose prose-sm max-w-none">
+            <p className="text-muted-foreground">{product.description}</p>
+          </div>
+
+          {/* Quantity Selector */}
+          <div className="space-y-4">
+            <label className="text-sm font-medium">Quantity</label>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
+                disabled={quantity <= 1}
+                aria-label="Decrease quantity"
               >
-                {(product.stock ?? 0) > 0
-                  ? `${product.stock} in stock`
-                  : "Out of stock"}
-              </Badge>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="w-12 text-center font-medium">{quantity}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setQuantity(prev => 
+                  product.stock ? Math.min(product.stock, prev + 1) : prev + 1
+                )}
+                disabled={product.stock ? quantity >= product.stock : false}
+                aria-label="Increase quantity"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                /{product.unit}
+              </span>
             </div>
           </div>
 
-          {/* Cart Controls */}
-          {product.inStock && (product.stock === undefined || product.stock > 0) ? (
-            cartItem ? (
-              <div className="flex items-center gap-1">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-7 w-7"
-                  onClick={() =>
-                    cartItem.quantity <= 1
-                      ? removeFromCart(product.id)
-                      : updateQuantity(product.id, cartItem.quantity - 1)
-                  }
-                  aria-label="Decrease quantity"
-                  title="Decrease quantity"
-                >
-                  <Minus className="h-3 w-3" />
-                </Button>
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <Button
+              size="lg"
+              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleAddToCart}
+              disabled={!product.inStock || (product.stock ?? 0) <= 0}
+            >
+              <ShoppingCart className="h-5 w-5 mr-2" />
+              {cartItem ? "Add More" : "Add to Cart"}
+            </Button>
+            
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => toggleWishlist(product)}
+              className="flex-1"
+            >
+              <Heart
+                className={`h-5 w-5 mr-2 ${
+                  isWishlisted ? "fill-primary text-primary" : ""
+                }`}
+              />
+              {isWishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
+            </Button>
+          </div>
 
-                <span className="w-6 text-center text-sm font-medium">
-                  {cartItem.quantity}
-                </span>
-
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-7 w-7"
-                  disabled={product.stock !== undefined && cartItem.quantity >= product.stock}
-                  onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
-                  aria-label="Increase quantity"
-                  title="Increase quantity"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => addToCart(product)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-                aria-label="Add to cart"
-                title="Add to cart"
-              >
-                <ShoppingCart className="h-4 w-4 mr-1" /> Add
-              </Button>
-            )
-          ) : (
-            <span className="text-xs text-muted-foreground italic">
-              Out of stock
-            </span>
-          )}
+          {/* Additional Info */}
+          <div className="border-t pt-6 space-y-2">
+            <p className="text-sm">
+              <span className="font-medium">SKU:</span> {product.id}
+            </p>
+            <p className="text-sm">
+              <span className="font-medium">Category:</span> {product.category}
+            </p>
+          </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
-export default ProductCard;
+export default ProductDetail;
