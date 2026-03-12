@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { StarRating } from "@/components/StarRating";
+import { useState, useEffect } from "react";
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -20,17 +21,25 @@ const badgeStyles: Record<string, string> = {
 const ProductCard = ({ product }: { product: Product }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
   const { toggleWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
+  
+  // Local state to track if component is mounted
+  const [isMounted, setIsMounted] = useState(true);
 
   const cartItem = items.find(i => i.product.id === product.id);
 
-  // Handle loading state gracefully - assume not in wishlist while loading
-  const isWishlisted = !wishlistLoading && isInWishlist(product.id);
+  // Handle loading state gracefully
+  const isWishlisted = isMounted && !wishlistLoading && isInWishlist(product.id);
 
   const imageSrc = product.image || PLACEHOLDER_IMAGE;
 
   const finalPrice = product.discount
     ? Math.round(product.price * (1 - product.discount / 100))
     : product.price;
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => setIsMounted(false);
+  }, []);
 
   return (
     <motion.div
@@ -64,28 +73,30 @@ const ProductCard = ({ product }: { product: Product }) => {
         )}
       </Link>
 
-      {/* Wishlist Button - Always render, just disable during loading */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleWishlist(product);
-        }}
-        disabled={wishlistLoading}
-      >
-        <Heart
-          className={`h-4 w-4 transition-all ${
-            wishlistLoading 
-              ? "text-muted-foreground animate-pulse" 
-              : isWishlisted
-                ? "fill-primary text-primary scale-110"
-                : "text-foreground"
-          }`}
-        />
-      </Button>
+      {/* Wishlist Button - Always render with inline styles to ensure visibility */}
+      <div className="absolute top-2 right-2 z-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWishlist(product);
+          }}
+          disabled={wishlistLoading}
+        >
+          <Heart
+            className={`h-4 w-4 transition-all ${
+              wishlistLoading 
+                ? "text-muted-foreground animate-pulse" 
+                : isWishlisted
+                  ? "fill-primary text-primary scale-110"
+                  : "text-foreground"
+            }`}
+          />
+        </Button>
+      </div>
 
       {/* Content */}
       <div className="p-4">
