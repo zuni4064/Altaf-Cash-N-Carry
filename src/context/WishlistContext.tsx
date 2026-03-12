@@ -24,7 +24,7 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
-const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
     const storageKey = `wishlist_${user?.id || 'guest'}`;
     const [loading, setLoading] = useState(false);
