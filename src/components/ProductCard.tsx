@@ -23,7 +23,7 @@ const ProductCard = ({ product }: { product: Product }) => {
 
   const cartItem = items.find(i => i.product.id === product.id);
 
-  // Prevent incorrect render while wishlist loads
+  // Handle loading state gracefully - assume not in wishlist while loading
   const isWishlisted = !wishlistLoading && isInWishlist(product.id);
 
   const imageSrc = product.image || PLACEHOLDER_IMAGE;
@@ -39,7 +39,6 @@ const ProductCard = ({ product }: { product: Product }) => {
       viewport={{ once: true }}
       className="group bg-card rounded-lg border border-border overflow-hidden hover-lift relative"
     >
-
       {/* Image */}
       <Link to={`/product/${product.id}`} className="block relative overflow-hidden aspect-square">
         <img
@@ -65,27 +64,28 @@ const ProductCard = ({ product }: { product: Product }) => {
         )}
       </Link>
 
-      {/* Wishlist Button */}
-      {!wishlistLoading && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleWishlist(product);
-          }}
-        >
-          <Heart
-            className={`h-4 w-4 transition-all ${
-              isWishlisted
+      {/* Wishlist Button - Always render, just disable during loading */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleWishlist(product);
+        }}
+        disabled={wishlistLoading}
+      >
+        <Heart
+          className={`h-4 w-4 transition-all ${
+            wishlistLoading 
+              ? "text-muted-foreground animate-pulse" 
+              : isWishlisted
                 ? "fill-primary text-primary scale-110"
                 : "text-foreground"
-            }`}
-          />
-        </Button>
-      )}
+          }`}
+        />
+      </Button>
 
       {/* Content */}
       <div className="p-4">
@@ -110,7 +110,6 @@ const ProductCard = ({ product }: { product: Product }) => {
         </p>
 
         <div className="flex items-center justify-between">
-
           {/* Price */}
           <div>
             <span className="font-bold text-primary">PKR {finalPrice}</span>
