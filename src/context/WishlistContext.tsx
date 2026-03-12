@@ -32,16 +32,20 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Load wishlist from localStorage immediately
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem(storageKey);
-            if (stored) {
-                setWishlist(JSON.parse(stored));
+        const loadLocalWishlist = () => {
+            try {
+                const stored = localStorage.getItem(storageKey);
+                if (stored) {
+                    setWishlist(JSON.parse(stored));
+                }
+            } catch {
+                console.warn("Invalid wishlist JSON");
+            } finally {
+                setLoading(false);
             }
-        } catch {
-            console.warn("Invalid wishlist JSON");
-        } finally {
-            setLoading(false);
-        }
+        };
+
+        loadLocalWishlist();
     }, [storageKey]);
 
     const persistToLocalStorage = useCallback(
@@ -51,12 +55,11 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         [storageKey]
     );
 
-    // Fetch wishlist from Supabase in the background
+    // Sync with Supabase in the background
     useEffect(() => {
-        const fetchWishlist = async () => {
+        const syncWithSupabase = async () => {
             if (!user) return;
 
-            // Don't set loading to true here - keep it false to avoid flicker
             try {
                 const { data: wishlistData, error } = await supabase
                     .from("wishlists")
@@ -74,6 +77,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     return;
                 }
 
+                // Get product details
                 const { data: productsData } = await supabase
                     .from("products")
                     .select("*");
@@ -98,76 +102,20 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     }
                 });
 
-                // fallback to static product list
-                const module = await import("@/data/products");
-                const staticProducts = module.products;
-
-                const getImageUrl = (img: any): string => {
-                    if (!img) return "";
-                    if (typeof img === "string") return img;
-                    if (img.default) return img.default;
-                    if (img.src) return img.src;
-                    return String(img);
-                };
-
-                wishlistData.forEach((item) => {
-                    const exists = wishlistProducts.find(
-                        (p) => p.id === item.product_id
-                    );
-
-                    if (!exists) {
-                        const staticProduct = staticProducts.find(
-                            (p) => p.id === item.product_id
-                        );
-
-                        if (staticProduct) {
-                            wishlistProducts.push({
-                                ...staticProduct,
-                                image: getImageUrl(staticProduct.image),
-                            });
-                        }
-                    }
-                });
-
                 setWishlist(wishlistProducts);
                 persistToLocalStorage(wishlistProducts);
             } catch (error) {
-                console.error("Wishlist fetch error:", error);
+                console.error("Wishlist sync error:", error);
             }
-            // Don't set loading to false here - it's already false
         };
 
-        fetchWishlist();
-
-        // Real-time listener
-        if (user) {
-            const channel = supabase
-                .channel(`wishlist:${user.id}`)
-                .on(
-                    "postgres_changes",
-                    {
-                        event: "*",
-                        schema: "public",
-                        table: "wishlists",
-                        filter: `user_id=eq.${user.id}`,
-                    },
-                    () => {
-                        fetchWishlist();
-                    }
-                )
-                .subscribe();
-
-            return () => {
-                supabase.removeChannel(channel);
-            };
-        }
+        syncWithSupabase();
     }, [user, persistToLocalStorage]);
 
     const addToWishlist = useCallback(
         async (product: Product) => {
             setWishlist((prev) => {
                 if (prev.find((p) => p.id === product.id)) return prev;
-
                 const next = [...prev, product];
                 persistToLocalStorage(next);
                 return next;
@@ -219,15 +167,13 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const toggleWishlist = useCallback(
         (product: Product) => {
-            const exists = wishlist.find((p) => p.id === product.id);
-
-            if (exists) {
+            if (isInWishlist(product.id)) {
                 removeFromWishlist(product.id);
             } else {
                 addToWishlist(product);
             }
         },
-        [wishlist, addToWishlist, removeFromWishlist]
+        [isInWishlist, addToWishlist, removeFromWishlist]
     );
 
     return (
