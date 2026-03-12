@@ -29,8 +29,9 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const [wishlist, setWishlist] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [initialLoadDone, setInitialLoadDone] = useState(false);
 
-    // Load wishlist from localStorage
+    // Load wishlist from localStorage immediately
     useEffect(() => {
         try {
             const stored = localStorage.getItem(storageKey);
@@ -40,6 +41,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         } catch {
             console.warn("Invalid wishlist JSON");
         } finally {
+            setInitialLoadDone(true);
             setLoading(false);
         }
     }, [storageKey]);
@@ -51,13 +53,12 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         [storageKey]
     );
 
-    // Fetch wishlist from Supabase
+    // Fetch wishlist from Supabase in the background
     useEffect(() => {
         const fetchWishlist = async () => {
             if (!user) return;
 
-            setLoading(true);
-
+            // Don't set loading to true here - keep it false to avoid flicker
             try {
                 const { data: wishlistData, error } = await supabase
                     .from("wishlists")
@@ -134,9 +135,8 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 persistToLocalStorage(wishlistProducts);
             } catch (error) {
                 console.error("Wishlist fetch error:", error);
-            } finally {
-                setLoading(false);
             }
+            // Don't set loading to false here - it's already false
         };
 
         fetchWishlist();
