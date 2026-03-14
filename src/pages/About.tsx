@@ -44,15 +44,15 @@ const VALUES = [
 const STATS = [
   { icon: Users,  value: 10000, suffix: "+", label: "Happy Customers" },
   { icon: Award,  value: 500,   suffix: "+", label: "Products"        },
-  { icon: Clock,  value: 29,    suffix: "yr", label: "Years Serving"  },
+  { icon: Clock,  value: 7,    suffix: "yr", label: "Years Serving"  },
   { icon: MapPin, value: 1,     suffix: "",   label: "Lahore Location"},
 ];
 
 const STORY = [
-  { year: "1995", title: "Founded",          desc: "Altaf Cash & Carry opens its doors in Central Park Society, Lahore with a vision to serve local families."       },
-  { year: "2005", title: "Community Pillar", desc: "Grew to serve thousands of households, becoming the go-to grocery destination for the entire neighbourhood."      },
-  { year: "2018", title: "Expansion",        desc: "Expanded our product range to 500+ items including fresh produce, dairy, bakery and household essentials."         },
-  { year: "2024", title: "Going Digital",    desc: "Launched online ordering platform to serve customers across Lahore with same-day delivery."                        },
+  { year: "2019", title: "Founded",          desc: "Altaf Cash & Carry opens its doors in Central Park Society, Lahore with a vision to serve local families."       },
+  { year: "2022", title: "Community Pillar", desc: "Grew to serve thousands of households, becoming the go-to grocery destination for the entire neighbourhood."      },
+  { year: "2024", title: "Expansion",        desc: "Expanded our product range to 500+ items including fresh produce, dairy, bakery and household essentials."         },
+  { year: "2026", title: "Going Digital",    desc: "Launched online ordering platform to serve customers across Lahore with same-day delivery."                        },
 ];
 
 const About = () => {
@@ -92,7 +92,7 @@ const About = () => {
             className="inline-flex items-center gap-2 text-secondary text-xs font-bold tracking-widest uppercase mb-4 bg-white/10 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/20"
           >
             <motion.span animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full bg-secondary inline-block" />
-            Est. 1995 · Central Park Society, Lahore
+            Est. 2019 · Central Park Society, Lahore
           </motion.div>
 
           <motion.h1
