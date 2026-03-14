@@ -182,3 +182,86 @@
   background-size: cover;
   background-position: center;
 }
+/* ── Analytics chart helpers ────────────────────────────
+   Add these to the BOTTOM of src/index.css
+   Replaces inline background styles with CSS custom props  */
+
+/* Colored dot used in chart legends and tooltips */
+.chart-dot  { background: var(--chart-dot-color,  hsl(var(--primary))); }
+
+/* Colored progress bar fill in status chart */
+.chart-bar  { background: var(--chart-bar-color,  hsl(var(--primary))); }
+
+
+/* ============================================================
+   AdminLayout — background blob classes
+   Add to the BOTTOM of src/index.css
+   ============================================================ */
+
+/* Container — fixed, full-screen, pointer-events off */
+.admin-bg-blobs {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* Shared blob base */
+.admin-blob {
+  position: absolute;
+  border-radius: 9999px;
+  animation: adminBlobDrift 14s ease-in-out infinite alternate;
+}
+
+/* Top-left — primary tint */
+.admin-blob--primary-tl {
+  width: 520px;
+  height: 520px;
+  top: -160px;
+  left: -160px;
+  background: hsl(var(--primary) / 0.06);
+  filter: blur(100px);
+  animation-delay: 0s;
+}
+
+/* Bottom-right — secondary tint */
+.admin-blob--secondary-br {
+  width: 420px;
+  height: 420px;
+  bottom: -140px;
+  right: -140px;
+  background: hsl(var(--secondary) / 0.05);
+  filter: blur(90px);
+  animation-delay: -5s;
+}
+
+/* Centre — very subtle primary */
+.admin-blob--primary-center {
+  width: 280px;
+  height: 280px;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: hsl(var(--primary) / 0.03);
+  filter: blur(80px);
+  animation-delay: -9s;
+}
+
+/* Gentle drift keyframe */
+@keyframes adminBlobDrift {
+  0%   { transform: translate(0,  0)  scale(1);    }
+  33%  { transform: translate(24px, -18px) scale(1.06); }
+  66%  { transform: translate(-14px, 20px) scale(0.95); }
+  100% { transform: translate(10px, -10px) scale(1.03); }
+}
+
+/* Override for center blob (has existing transform) */
+.admin-blob--primary-center {
+  animation-name: adminBlobDriftCenter;
+}
+@keyframes adminBlobDriftCenter {
+  0%   { transform: translate(-50%, -50%) scale(1);    }
+  50%  { transform: translate(-50%, -58%) scale(1.1);  }
+  100% { transform: translate(-50%, -44%) scale(0.92); }
+}
