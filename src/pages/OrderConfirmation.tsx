@@ -1,103 +1,414 @@
 import { useParams, Link } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, ArrowRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { CheckCircle2, ArrowRight, Share2, ShoppingBag, Download, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 import OrderTrackingTimeline from "@/components/OrderTrackingTimeline";
 import OrderReview from "@/components/OrderReview";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
-const OrderConfirmation = () => {
-  const { orderId } = useParams();
-  const { orders } = useCart();
-  const order = orders.find(o => o.id === orderId);
+/* ── Types ─────────────────────────────────────────────────── */
+interface OrderItem {
+  product: {
+    id: string;
+    name: string;
+    price: number;
+    discount?: number;
+    image?: string;
+    unit?: string;
+  };
+  quantity: number;
+}
 
-  // Normalize status format from database (admin uses lowercase with hyphens) to display format (capitalized)
-  const normalizeStatus = (status: string): string => {
-    const statusMap: Record<string, string> = {
-      'confirmed': 'Confirmed',
-      'preparing': 'Preparing',
-      'out-for-delivery': 'Out for Delivery',
-      'delivered': 'Delivered',
-      'pending': 'Pending',
-      'cancelled': 'Cancelled'
+interface OrderData {
+  id: string;
+  date: string;
+  status: string;
+  total: number;
+  customerName: string;
+  phone: string;
+  address: string;
+  items: OrderItem[];
+  paymentMethod?: string;
+  deliveryCharge?: number;
+}
+
+/* ── Confetti ───────────────────────────────────────────────── */
+const CONFETTI_COLORS = [
+  "hsl(var(--primary))", "hsl(var(--secondary))",
+  "#f59e0b", "#10b981", "#ef4444", "#3b82f6", "#8b5cf6",
+];
+
+const Confetti = () => {
+  const pieces = Array.from({ length: 28 }, (_, i) => ({
+    id: i,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    x:      (Math.random() - 0.5) * 600,
+    y:      -(Math.random() * 400 + 100),
+    rotate: Math.random() * 720 - 360,
+    size:   Math.random() * 8 + 5,
+    delay:  Math.random() * 0.4,
+  }));
+
+  return (
+    <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-50 overflow-hidden">
+      {pieces.map(p => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-sm"
+          style={{ width: p.size, height: p.size * 0.5, background: p.color, top: "40%", left: "50%" }}
+          initial={{ x: 0, y: 0, opacity: 1, rotate: 0 }}
+          animate={{ x: p.x, y: p.y, opacity: 0, rotate: p.rotate }}
+          transition={{ duration: 1.4 + Math.random() * 0.6, delay: p.delay, ease: "easeOut" }}
+        />
+      ))}
+    </div>
+  );
+};
+
+/* ── Helpers ────────────────────────────────────────────────── */
+const normalizeStatus = (status: string): string => {
+  const map: Record<string, string> = {
+    confirmed:          "Confirmed",
+    preparing:          "Preparing",
+    "out-for-delivery": "Out for Delivery",
+    delivered:          "Delivered",
+    pending:            "Pending",
+    cancelled:          "Cancelled",
+  };
+  return map[status?.toLowerCase()] || "Pending";
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  Pending:           "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  Confirmed:         "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  Preparing:         "bg-orange-500/15 text-orange-600 border-orange-500/30",
+  "Out for Delivery":"bg-primary/15 text-primary border-primary/30",
+  Delivered:         "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  Cancelled:         "bg-destructive/15 text-destructive border-destructive/30",
+};
+
+/* ── Fetch order from Supabase ──────────────────────────────── */
+const fetchOrderFromDB = async (orderId: string): Promise<OrderData | null> => {
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .single();
+
+    if (error || !data) return null;
+
+    /* Supabase stores items as JSON — parse if it's a string */
+    const rawItems = typeof data.items === "string"
+      ? JSON.parse(data.items)
+      : data.items || [];
+
+    return {
+      id:             data.id,
+      date:           data.created_at
+        ? new Date(data.created_at).toLocaleDateString("en-PK", {
+            day: "numeric", month: "long", year: "numeric",
+          })
+        : "",
+      status:         data.status || "pending",
+      total:          data.total ?? 0,
+      customerName:   data.customer_name  || data.name        || "",
+      phone:          data.phone          || "",
+      address:        data.address        || "",
+      paymentMethod:  data.payment_method || "COD",
+      deliveryCharge: data.delivery_charge ?? 0,
+      items:          rawItems,
     };
-    return statusMap[status?.toLowerCase()] || 'Pending';
+  } catch {
+    return null;
+  }
+};
+
+/* ════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════════════ */
+const OrderConfirmation = () => {
+  const { orderId }        = useParams();
+  const { orders, loadOrders } = useCart() as any; /* loadOrders may exist depending on your CartContext */
+
+  /* ── Try local state first, then fetch from DB ── */
+  const localOrder = orders?.find((o: any) => o.id === orderId);
+
+  const [order,        setOrder]        = useState<OrderData | null>(localOrder ?? null);
+  const [loading,      setLoading]      = useState(!localOrder);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  useEffect(() => {
+    if (localOrder) {
+      setOrder(localOrder);
+      setLoading(false);
+      return;
+    }
+
+    if (!orderId) { setLoading(false); return; }
+
+    /* Not in local cache → fetch directly from Supabase */
+    (async () => {
+      setLoading(true);
+      const fetched = await fetchOrderFromDB(orderId);
+      setOrder(fetched);
+      setLoading(false);
+
+      /* Also try to refresh the cart orders list so MyOrders gets populated */
+      if (typeof loadOrders === "function") {
+        try { await loadOrders(); } catch { /* silent */ }
+      }
+    })();
+  }, [orderId, localOrder]);
+
+  /* Confetti on order found */
+  useEffect(() => {
+    if (!order) return;
+    setShowConfetti(true);
+    const t = setTimeout(() => setShowConfetti(false), 2200);
+    return () => clearTimeout(t);
+  }, [order?.id]);
+
+  const handleShare = () => {
+    navigator.clipboard?.writeText(window.location.href);
+    toast.success("Order link copied!");
   };
 
-  // Use the actual order status from the database (real-time updates via CartContext subscription)
-  const currentStatus = normalizeStatus(order?.status || "Pending");
-
-  if (!order) return (
-    <div className="container py-20 text-center">
-      <p className="text-muted-foreground">Order not found.</p>
-      <Link to="/" className="text-primary underline mt-4 inline-block">Go Home</Link>
+  /* ── Loading state ── */
+  if (loading) return (
+    <div className="container py-28 flex flex-col items-center gap-5">
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+      >
+        <Loader2 className="h-12 w-12 text-primary" />
+      </motion.div>
+      <p className="text-muted-foreground font-medium">Loading your order…</p>
     </div>
   );
 
+  /* ── Not found ── */
+  if (!order) return (
+    <div className="container py-20 text-center">
+      <p className="text-muted-foreground mb-4">Order not found.</p>
+      <Link to="/" className="text-primary underline">Go Home</Link>
+    </div>
+  );
+
+  const finalPrice = (item: OrderItem) =>
+    item.product.discount
+      ? Math.round(item.product.price * (1 - item.product.discount / 100))
+      : item.product.price;
+
+  const currentStatus = normalizeStatus(order.status);
+  const deliveryCharge = order.deliveryCharge ?? 0;
+  const isFreeDelivery = deliveryCharge === 0 && order.total >= 2000;
+
   return (
-    <div className="container py-8 max-w-2xl">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center mb-8">
-        <CheckCircle className="h-16 w-16 text-success mx-auto mb-4" />
-        <h1 className="text-3xl font-display font-bold mb-2">Order Placed!</h1>
-        <p className="text-muted-foreground">Thank you for shopping with Cash & Carry</p>
-      </motion.div>
+    <>
+      <AnimatePresence>{showConfetti && <Confetti key="confetti" />}</AnimatePresence>
 
-      <div className="mb-12 mt-8">
-        <OrderTrackingTimeline currentStatus={currentStatus} />
-      </div>
+      <div className="container py-10 max-w-2xl">
 
-      <div className="bg-card rounded-lg border border-border p-6 mt-8 relative overflow-hidden">
-        {/* Decorative receipt header/logo */}
-        <div className="flex flex-col items-center justify-center border-b border-dashed border-border pb-6 mb-6">
-          <img src="/logo.png" alt="Altaf Mart Cash & Carry" className="h-20 w-auto object-contain mb-2" />
-          <p className="text-xs text-muted-foreground tracking-widest uppercase">Official Receipt</p>
-        </div>
-        <div className="flex justify-between mb-4 text-sm">
-          <span className="text-muted-foreground">Order ID</span>
-          <span className="font-mono font-bold">{order.id}</span>
-        </div>
-        <div className="flex justify-between mb-4 text-sm">
-          <span className="text-muted-foreground">Date</span>
-          <span>{order.date}</span>
-        </div>
-        <div className="flex justify-between mb-4 text-sm">
-          <span className="text-muted-foreground">Customer</span>
-          <span>{order.customerName}</span>
-        </div>
-        <div className="flex justify-between mb-4 text-sm">
-          <span className="text-muted-foreground">Phone</span>
-          <span>{order.phone}</span>
-        </div>
-        <div className="flex justify-between mb-6 text-sm">
-          <span className="text-muted-foreground">Address</span>
-          <span className="text-right max-w-[200px]">{order.address}</span>
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <h3 className="font-semibold mb-3">Items</h3>
-          <div className="space-y-2 text-sm">
-            {order.items.map(item => (
-              <div key={item.product.id} className="flex justify-between">
-                <span>{item.product.name} × {item.quantity}</span>
-                <span>PKR {(item.product.discount ? Math.round(item.product.price * (1 - item.product.discount / 100)) : item.product.price) * item.quantity}</span>
-              </div>
+        {/* ── Success header ── */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 160, damping: 16 }}
+          className="text-center mb-10"
+        >
+          <div className="relative inline-block mb-5">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 200, damping: 14, delay: 0.1 }}
+              className="w-24 h-24 rounded-full bg-emerald-500/15 flex items-center justify-center mx-auto"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.3 }}
+              >
+                <CheckCircle2 className="h-14 w-14 text-emerald-500" />
+              </motion.div>
+            </motion.div>
+            {[1, 2].map(i => (
+              <motion.div
+                key={i}
+                className="absolute inset-0 rounded-full border-2 border-emerald-400/40"
+                initial={{ scale: 1, opacity: 0.8 }}
+                animate={{ scale: 1.8 + i * 0.4, opacity: 0 }}
+                transition={{ duration: 1.2, delay: 0.3 + i * 0.2, repeat: 1, ease: "easeOut" }}
+              />
             ))}
           </div>
-          <div className="border-t border-border mt-4 pt-4 flex justify-between font-bold text-lg">
-            <span>Total</span>
-            <span className="text-primary">PKR {Math.round(order.total)}</span>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-4xl font-display font-extrabold mb-2"
+          >
+            Order Placed! 🎉
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.55 }}
+            className="text-muted-foreground"
+          >
+            Thank you for shopping with{" "}
+            <span className="font-semibold text-foreground">Altaf Cash &amp; Carry</span>
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+            className="flex items-center justify-center gap-3 mt-4 flex-wrap"
+          >
+            <span className="font-mono text-xs bg-muted px-3 py-1.5 rounded-full font-bold">
+              #{order.id?.toString().slice(-10).toUpperCase()}
+            </span>
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${STATUS_COLOR[currentStatus] || STATUS_COLOR.Pending}`}>
+              {currentStatus}
+            </span>
+            {isFreeDelivery && (
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/25">
+                ✨ Free Delivery
+              </span>
+            )}
+          </motion.div>
+        </motion.div>
+
+        {/* ── Tracking timeline ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75 }}
+          className="mb-10"
+        >
+          <OrderTrackingTimeline currentStatus={currentStatus as any} />
+        </motion.div>
+
+        {/* ── Receipt card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9, type: "spring", stiffness: 100 }}
+          className="bg-card rounded-3xl border border-border/60 shadow-lg overflow-hidden mb-8"
+        >
+          {/* Receipt header */}
+          <div className="gradient-hero px-6 py-5 text-primary-foreground text-center">
+            <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}>
+              <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-90" />
+            </motion.div>
+            <p className="font-display font-extrabold text-lg tracking-wide">Official Receipt</p>
+            <p className="text-primary-foreground/70 text-xs mt-0.5">Altaf Cash &amp; Carry · Lahore</p>
           </div>
-        </div>
-      </div>
 
-      {/* Review Section */}
-      <OrderReview orderId={order.id} customerName={order.customerName} />
+          <div className="p-6">
+            {/* Order meta */}
+            {[
+              { label: "Order ID",  value: <span className="font-mono font-bold text-xs">{order.id}</span> },
+              { label: "Date",      value: order.date },
+              { label: "Customer",  value: order.customerName },
+              { label: "Phone",     value: order.phone },
+              { label: "Address",   value: order.address, right: true },
+              { label: "Payment",   value: order.paymentMethod || "COD" },
+            ].map(row => (
+              <div
+                key={row.label}
+                className="flex justify-between items-start mb-3 pb-3 border-b border-border/30 last:border-0 last:mb-0 last:pb-0 text-sm"
+              >
+                <span className="text-muted-foreground flex-shrink-0">{row.label}</span>
+                <span className={`${row.right ? "text-right max-w-[55%]" : ""} font-medium`}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
 
-      <div className="flex gap-3 mt-6">
-        <Link to="/my-orders"><Button variant="outline">View All Orders</Button></Link>
-        <Link to="/shop"><Button className="bg-primary text-primary-foreground hover:bg-primary/90">Continue Shopping <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+            {/* Items */}
+            {order.items.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-dashed border-border">
+                <h3 className="font-display font-bold mb-3 text-sm">Items Ordered</h3>
+                <div className="space-y-2">
+                  {order.items.map((item, idx) => (
+                    <div key={item.product?.id ?? idx} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {item.product?.name ?? "Product"}
+                        <span className="text-foreground font-semibold ml-1">× {item.quantity}</span>
+                      </span>
+                      <span className="font-semibold">
+                        PKR {(finalPrice(item) * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Totals */}
+            <div className="mt-4 pt-4 border-t border-dashed border-border space-y-2 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>PKR {Math.round(order.total - deliveryCharge).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Delivery</span>
+                <span className={isFreeDelivery ? "text-emerald-600 font-bold" : "font-medium"}>
+                  {isFreeDelivery ? "FREE ✨" : deliveryCharge > 0 ? `PKR ${deliveryCharge}` : "PKR 0"}
+                </span>
+              </div>
+              <div className="flex justify-between font-extrabold text-base pt-2 border-t border-border">
+                <span>Grand Total</span>
+                <span className="text-primary">PKR {Math.round(order.total).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-muted/40 px-6 py-3 text-center text-xs text-muted-foreground border-t border-border/40">
+            Thank you for your business! · altafcashncarry.pk
+          </div>
+        </motion.div>
+
+        {/* ── Review ── */}
+        <OrderReview orderId={order.id} customerName={order.customerName} />
+
+        {/* ── Actions ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+          className="flex flex-wrap gap-3 mt-6"
+        >
+          <Link to="/my-orders">
+            <Button variant="outline" className="rounded-xl gap-2">
+              <Download className="h-4 w-4" /> My Orders
+            </Button>
+          </Link>
+          <Button variant="outline" onClick={handleShare} className="rounded-xl gap-2">
+            <Share2 className="h-4 w-4" /> Share Order
+          </Button>
+          <Link to="/shop" className="flex-1">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} className="w-full">
+              <Button className="w-full rounded-xl gap-2 relative overflow-hidden">
+                <motion.span
+                  className="absolute inset-0 bg-white/15 skew-x-[-15deg]"
+                  initial={{ x: "-130%" }}
+                  whileHover={{ x: "230%" }}
+                  transition={{ duration: 0.45 }}
+                />
+                Continue Shopping <ArrowRight className="h-4 w-4" />
+              </Button>
+            </motion.div>
+          </Link>
+        </motion.div>
       </div>
-    </div>
+    </>
   );
 };
 

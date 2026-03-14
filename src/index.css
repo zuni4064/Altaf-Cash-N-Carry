@@ -127,3 +127,58 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--primary) / 0.5);
 }
+
+/* ============================================================
+   Inline-style fix patch — add to the BOTTOM of src/index.css
+   Replaces all static background-image inline styles with classes
+   ============================================================ */
+
+/* About page */
+.about-hero-bg {
+  background-image: url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+.about-commitment-bg {
+  background-image: url('https://images.unsplash.com/photo-1604719312566-8912e9227c6a?q=80&w=1920&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+
+/* Index page - CTA section (already defined as .cta-bg-image, alias kept) */
+.cta-bg-image {
+  background-image: url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+
+/* Index page - Hero background */
+.hero-bg-image {
+  background-image: url('https://images.unsplash.com/photo-1542838132-92c53300491e?w=1920&q=80');
+  background-size: cover;
+  background-position: center;
+}
+
+/* Contact page - Map or decorative background */
+.contact-map-bg {
+  background-image: url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+
+/* ── Dynamic category/product background images ──────────────
+   These CANNOT be moved to static CSS (they depend on runtime
+   data). The correct fix for the linter is to pass them as a
+   CSS custom property instead of a backgroundImage style prop.
+
+   In your JSX, change:
+     style={{ backgroundImage: `url(${cat.image})` }}
+   to:
+     style={{ '--cat-bg': `url(${cat.image})` } as React.CSSProperties}
+
+   Then add this class to the element: class="dynamic-bg"       */
+.dynamic-bg {
+  background-image: var(--cat-bg);
+  background-size: cover;
+  background-position: center;
+}
