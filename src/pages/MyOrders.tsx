@@ -170,15 +170,7 @@ const MyOrders = () => {
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1.5">{order.date}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
-                            {order.items.length > 0 && (
-                              <> — <span className="text-foreground font-medium">
-                                {order.items.map(i => i.name).join(", ")}
-                                {order.itemCount > 2 ? ` +${order.itemCount - 2} more` : ""}
-                              </span></>
-                            )}
-                          </p>
+                          
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="font-extrabold text-primary text-sm">
