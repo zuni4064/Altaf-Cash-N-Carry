@@ -2,113 +2,308 @@ import { Product } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, Heart } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Heart, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import {
+  motion, AnimatePresence,
+  useMotionValue, useTransform, useSpring,
+} from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { StarRating } from "@/components/StarRating";
+import { useRef } from "react";
 
-// Default placeholder image
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
-const badgeStyles: Record<string, string> = {
-  bestseller: "bg-secondary text-secondary-foreground",
-  discount: "bg-destructive text-destructive-foreground",
-  new: "bg-success text-success-foreground",
-  "out-of-stock": "bg-muted text-muted-foreground",
+const BADGE_CONFIG: Record<string, { style: string; label: string }> = {
+  bestseller:    { style: "bg-amber-500 text-white",          label: "⭐ Best Seller" },
+  discount:      { style: "bg-red-500 text-white",            label: ""               },
+  new:           { style: "bg-emerald-500 text-white",        label: "✨ New"          },
+  "out-of-stock":{ style: "bg-muted text-muted-foreground",   label: "Sold Out"       },
 };
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
-  const cartItem = items.find(i => i.product.id === product.id);
+
+  const cartItem     = items.find(i => i.product.id === product.id);
   const isWishlisted = isInWishlist(product.id);
+  const cardRef      = useRef<HTMLDivElement>(null);
 
-  // Use placeholder if image is empty or invalid
-  const imageSrc = product.image || PLACEHOLDER_IMAGE;
+  /* ── 3-D tilt ───────────────────────────────────────────── */
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [7, -7]),  { stiffness: 300, damping: 30 });
+  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-7,  7]), { stiffness: 300, damping: 30 });
 
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const r = cardRef.current.getBoundingClientRect();
+    mouseX.set((e.clientX - r.left) / r.width  - 0.5);
+    mouseY.set((e.clientY - r.top)  / r.height - 0.5);
+  };
+  const onMouseLeave = () => { mouseX.set(0); mouseY.set(0); };
+
+  const imageSrc   = product.image || PLACEHOLDER_IMAGE;
   const finalPrice = product.discount
     ? Math.round(product.price * (1 - product.discount / 100))
     : product.price;
 
+  const badgeCfg = product.badge ? BADGE_CONFIG[product.badge] : null;
+  const inStock  = product.inStock && (product.stock === undefined || product.stock > 0);
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      ref={cardRef}
+      initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="group bg-card rounded-lg border border-border overflow-hidden hover-lift"
+      viewport={{ once: true, margin: "-30px" }}
+      transition={{ type: "spring", stiffness: 120, damping: 18 }}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d", perspective: 900 }}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      className="group relative bg-card rounded-2xl overflow-hidden border border-border/50
+                 shadow-sm hover:shadow-xl hover:shadow-primary/10
+                 transition-shadow duration-300"
     >
-      <Link to={`/product/${product.id}`} className="block relative overflow-hidden aspect-square">
-        <img
-          src={imageSrc}
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-          onError={(e) => {
-            // Fallback if image fails to load
-            (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE;
-          }}
-        />
-        {product.badge && (
-          <Badge className={`absolute top-3 left-3 ${badgeStyles[product.badge]}`}>
-            {product.badge === "discount" ? `-${product.discount}%` : product.badge === "out-of-stock" ? "Out of Stock" : product.badge === "bestseller" ? "Best Seller" : "New"}
-          </Badge>
-        )}
-      </Link>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-2 right-2 h-8 w-8 bg-background/80 backdrop-blur-sm hover:bg-background/90 z-10"
-        onClick={(e) => {
-          e.preventDefault();
-          toggleWishlist(product);
+      {/* ── Glow border on hover ─────────────────────────────── */}
+      <motion.div
+        className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-300 -z-10"
+        style={{
+          background: "linear-gradient(135deg, hsl(var(--primary)/0.4), hsl(var(--secondary)/0.3))",
+          filter: "blur(6px)",
         }}
-      >
-        <Heart className={`h-4 w-4 transition-colors ${isWishlisted ? 'fill-primary text-primary' : 'text-foreground'}`} />
-      </Button>
-      <div className="p-4">
-        <p className="text-xs text-muted-foreground capitalize mb-1">{product.category.replace("-", " & ").replace("fruits & vegetables", "Fruits & Vegetables")}</p>
+      />
+
+      {/* ══ IMAGE AREA ══════════════════════════════════════════ */}
+      <div className="relative overflow-hidden aspect-[4/3]">
         <Link to={`/product/${product.id}`}>
-          <h3 className="font-semibold text-sm mb-1 hover:text-primary transition-colors line-clamp-1">{product.name}</h3>
+          <motion.img
+            src={imageSrc}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            whileHover={{ scale: 1.1 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE; }}
+          />
+
+          {/* Dark scrim on hover for action buttons */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300" />
+
+          {/* Quick-view pill that slides up on hover */}
+          <motion.div
+            initial={{ y: 40, opacity: 0 }}
+            whileHover={{ y: 0,  opacity: 1 }}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none
+                       group-hover:pointer-events-auto"
+          >
+            <span className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm
+                             text-foreground text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
+              <Eye className="h-3 w-3" /> Quick View
+            </span>
+          </motion.div>
         </Link>
+
+        {/* Badge */}
+        {badgeCfg && (
+          <motion.div
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15, type: "spring" }}
+            className="absolute top-2.5 left-2.5 z-10"
+          >
+            <span className={`${badgeCfg.style} text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm`}>
+              {product.badge === "discount"
+                ? `−${product.discount}%`
+                : badgeCfg.label}
+            </span>
+          </motion.div>
+        )}
+
+        {/* Wishlist button */}
+        <div className="absolute top-2.5 right-2.5 z-10">
+          <motion.button
+            whileTap={{ scale: 0.7 }}
+            whileHover={{ scale: 1.15 }}
+            aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            onClick={(e) => { e.preventDefault(); toggleWishlist(product); }}
+            className="w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-md
+                       flex items-center justify-center border border-white/40"
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={isWishlisted ? "on" : "off"}
+                initial={{ scale: 0, rotate: -20 }}
+                animate={{ scale: 1, rotate: 0  }}
+                exit={{   scale: 0, rotate:  20 }}
+                transition={{ type: "spring", stiffness: 320, damping: 18 }}
+              >
+                <Heart
+                  className={`h-4 w-4 transition-colors
+                    ${isWishlisted ? "fill-red-500 text-red-500" : "text-gray-500"}`}
+                />
+              </motion.div>
+            </AnimatePresence>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* ══ CARD BODY ════════════════════════════════════════════ */}
+      <div className="p-3">
+
+        {/* Category */}
+        <p className="text-[10px] text-muted-foreground font-semibold tracking-widest uppercase mb-0.5">
+          {product.category.replace(/-/g, " & ")}
+        </p>
+
+        {/* Product name */}
+        <Link to={`/product/${product.id}`}>
+          <h3 className="font-bold text-sm leading-snug line-clamp-1 hover:text-primary transition-colors mb-1">
+            {product.name}
+          </h3>
+        </Link>
+
+        {/* Star rating */}
         {product.rating !== undefined && (
-          <div className="mb-2">
+          <div className="mb-1.5">
             <StarRating rating={product.rating} reviewCount={product.reviewCount} />
           </div>
         )}
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{product.description}</p>
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="font-bold text-primary">PKR {finalPrice}</span>
-            {product.discount && (
-              <span className="text-xs text-muted-foreground line-through ml-1">PKR {product.price}</span>
-            )}
-            <span className="text-xs text-muted-foreground">/{product.unit}</span>
-            <div className="mt-2">
-              <Badge variant={(product.stock ?? 0) > 0 ? "outline" : "destructive"} className={(product.stock ?? 0) > 0 ? "text-success border-success bg-success/10" : ""}>
-                {(product.stock ?? 0) > 0 ? `${product.stock ?? 0} in stock` : "Out of stock"}
-              </Badge>
+
+        {/* ── Price row + Add button ─────────────────────────── */}
+        <div className="flex items-center justify-between gap-2 mt-2">
+
+          {/* Price */}
+          <div className="flex flex-col">
+            <div className="flex items-baseline gap-1">
+              <motion.span
+                key={finalPrice}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-base font-extrabold text-primary leading-none"
+              >
+                PKR {finalPrice.toLocaleString()}
+              </motion.span>
+              {product.discount && (
+                <span className="text-[10px] text-muted-foreground line-through">
+                  {product.price.toLocaleString()}
+                </span>
+              )}
             </div>
+            <span className="text-[10px] text-muted-foreground mt-0.5">
+              per {product.unit}
+            </span>
           </div>
-          {product.inStock && (product.stock === undefined || product.stock > 0) ? (
-            cartItem ? (
-              <div className="flex items-center gap-1">
-                <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => cartItem.quantity <= 1 ? removeFromCart(product.id) : updateQuantity(product.id, cartItem.quantity - 1)}>
-                  <Minus className="h-3 w-3" />
-                </Button>
-                <span className="w-6 text-center text-sm font-medium">{cartItem.quantity}</span>
-                <Button size="icon" variant="outline" className="h-7 w-7" disabled={product.stock !== undefined && cartItem.quantity >= product.stock} onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}>
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
+
+          {/* Cart controls */}
+          <AnimatePresence mode="wait">
+            {!inStock ? (
+              <motion.span
+                key="oos"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[10px] text-muted-foreground italic"
+              >
+                Out of stock
+              </motion.span>
+
+            ) : cartItem ? (
+              /* Stepper */
+              <motion.div
+                key="stepper"
+                initial={{ opacity: 0, scale: 0.75 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{   opacity: 0, scale: 0.75 }}
+                transition={{ type: "spring", stiffness: 300 }}
+                className="flex items-center gap-1"
+              >
+                <motion.div whileTap={{ scale: 0.8 }}>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-6 w-6 rounded-full border-border/60"
+                    aria-label="Decrease quantity"
+                    onClick={() =>
+                      cartItem.quantity <= 1
+                        ? removeFromCart(product.id)
+                        : updateQuantity(product.id, cartItem.quantity - 1)
+                    }
+                  >
+                    <Minus className="h-2.5 w-2.5" />
+                  </Button>
+                </motion.div>
+
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={cartItem.quantity}
+                    initial={{ y: -8, opacity: 0 }}
+                    animate={{ y:  0, opacity: 1 }}
+                    exit={{   y:  8, opacity: 0 }}
+                    transition={{ duration: 0.14 }}
+                    className="w-5 text-center text-sm font-bold text-primary"
+                  >
+                    {cartItem.quantity}
+                  </motion.span>
+                </AnimatePresence>
+
+                <motion.div whileTap={{ scale: 0.8 }}>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-6 w-6 rounded-full border-border/60"
+                    aria-label="Increase quantity"
+                    disabled={product.stock !== undefined && cartItem.quantity >= product.stock}
+                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
+                  >
+                    <Plus className="h-2.5 w-2.5" />
+                  </Button>
+                </motion.div>
+              </motion.div>
+
             ) : (
-              <Button size="sm" onClick={() => addToCart(product)} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                <ShoppingCart className="h-4 w-4 mr-1" /> Add
-              </Button>
-            )
-          ) : (
-            <span className="text-xs text-muted-foreground italic">Out of stock</span>
-          )}
+              /* Add button */
+              <motion.div
+                key="add"
+                initial={{ opacity: 0, scale: 0.75 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{   opacity: 0, scale: 0.75 }}
+                transition={{ type: "spring", stiffness: 300 }}
+                whileHover={{ scale: 1.07 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <Button
+                  size="sm"
+                  onClick={() => addToCart(product)}
+                  className="h-8 px-3 text-xs font-bold rounded-full bg-primary
+                             text-primary-foreground hover:bg-primary/90 shadow-md
+                             shadow-primary/25 relative overflow-hidden"
+                >
+                  {/* Shine sweep */}
+                  <motion.span
+                    className="absolute inset-0 bg-white/20 skew-x-[-15deg]"
+                    initial={{ x: "-130%" }}
+                    whileHover={{ x: "230%" }}
+                    transition={{ duration: 0.30 }}
+                  />
+                  <ShoppingCart className="h-3 w-3 mr-1" />
+                  Add
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Stock pill */}
+        <div className="mt-2">
+          <span
+            className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full
+              ${(product.stock ?? 0) > 0
+                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                : "bg-destructive/10 text-destructive border border-destructive/20"}`}
+          >
+            {(product.stock ?? 0) > 0 ? `${product.stock} in stock` : "Out of stock"}
+          </span>
         </div>
       </div>
     </motion.div>
