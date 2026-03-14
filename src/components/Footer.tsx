@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { MapPin, Phone, Facebook, Instagram, ArrowUp, ShoppingBag, Heart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -34,6 +34,26 @@ const SOCIALS = [
   },
 ];
 
+/* ── Scroll to top link component ── */
+const ScrollToTopLink = ({ to, label, className = "" }: { to: string; label: string | React.ReactNode; className?: string }) => {
+  const handleClick = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  };
+
+  return (
+    <Link
+      to={to}
+      onClick={handleClick}
+      className={className}
+    >
+      {label}
+    </Link>
+  );
+};
+
 /* ── Back-to-top button ── */
 const BackToTop = () => {
   const [visible, setVisible] = useState(false);
@@ -66,19 +86,29 @@ const BackToTop = () => {
 };
 
 /* ── Animated footer link ── */
-const FooterLink = ({ to, label }: { to: string; label: string }) => (
-  <motion.div whileHover={{ x: 5 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
-    <Link
-      to={to}
-      className="flex items-center gap-1.5 text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors group"
-    >
-      <motion.span
-        className="w-0 h-px bg-secondary group-hover:w-3 transition-all duration-200 inline-block"
-      />
-      {label}
-    </Link>
-  </motion.div>
-);
+const FooterLink = ({ to, label }: { to: string; label: string }) => {
+  const handleClick = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  };
+
+  return (
+    <motion.div whileHover={{ x: 5 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
+      <Link
+        to={to}
+        onClick={handleClick}
+        className="flex items-center gap-1.5 text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors group"
+      >
+        <motion.span
+          className="w-0 h-px bg-secondary group-hover:w-3 transition-all duration-200 inline-block"
+        />
+        {label}
+      </Link>
+    </motion.div>
+  );
+};
 
 const Footer = () => {
   const year = new Date().getFullYear();
@@ -124,13 +154,18 @@ const Footer = () => {
               transition={{ type: "spring", stiffness: 100 }}
               className="sm:col-span-2 lg:col-span-1"
             >
-              <Link to="/" className="inline-block mb-5">
-                <img
-                  src="/logo.png"
-                  alt="Altaf Cash and Carry"
-                  className="h-16 w-auto bg-white/10 p-2 rounded-2xl object-contain"
-                />
-              </Link>
+              <ScrollToTopLink 
+                to="/" 
+                label={
+                  <img
+                    src="/logo.png"
+                    alt="Altaf Cash and Carry"
+                    className="h-16 w-auto bg-white/10 p-2 rounded-2xl object-contain"
+                  />
+                } 
+                className="inline-block mb-5"
+              />
+
               <p className="text-sm text-primary-foreground/70 leading-relaxed mb-5 max-w-xs">
                 Your one-stop shop for fresh quality groceries and household essentials in Lahore — serving families since 1995.
               </p>
