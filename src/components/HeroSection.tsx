@@ -92,7 +92,7 @@ const HeroSection = () => {
               className="font-black leading-[0.92] tracking-tight text-white"
               style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(3rem, 10vw, 8.5rem)", textShadow: "0 24px 60px rgba(0,0,0,0.45)" }}
             >
-              Farm Fresh.
+              Shop Smart.
               <br />
               <motion.span
                 initial={{ opacity: 0, x: -24 }}
@@ -100,7 +100,7 @@ const HeroSection = () => {
                 transition={{ duration: 0.9, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
                 style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg,#6ee7b7 0%,#34d399 45%,#fbbf24 100%)" }}
               >
-                Delivered Fast.
+               Live Better.
               </motion.span>
             </motion.h1>
           </motion.div>
@@ -111,7 +111,7 @@ const HeroSection = () => {
             transition={{ duration: 0.75, delay: 0.65, ease: [0.22, 1, 0.36, 1] }}
             className="mt-6 max-w-lg text-base md:text-lg font-light leading-relaxed text-white/55"
           >
-            Hundreds of quality products. Unbeatable prices. Everything your home needs — in Lahore.
+            Fresh groceries, household essentials, personal care, bakery items and more — in Lahore.
           </motion.p>
 
           <motion.div
