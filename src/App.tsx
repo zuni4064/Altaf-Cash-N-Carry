@@ -10,6 +10,7 @@ import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ScrollToTop from "@/components/ScrollToTop";
 
 // Layouts & Utilities
 import PublicLayout from "@/layouts/PublicLayout";
@@ -60,6 +61,7 @@ const App = () => (
                   <Toaster />
                   <Sonner />
                   <BrowserRouter>
+                    <ScrollToTop />
                     <Suspense fallback={<PageLoader />}>
                       <Routes>
                         {/* Admin Routes - No Public Navbar/Footer */}
