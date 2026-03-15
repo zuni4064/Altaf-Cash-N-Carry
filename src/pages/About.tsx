@@ -111,7 +111,7 @@ const About = () => {
             transition={{ delay: 0.28 }}
             className="text-lg md:text-xl max-w-2xl mx-auto opacity-85 font-light"
           >
-            Your trusted neighbourhood grocer — bringing fresh quality and unbeatable prices to Lahore families since 1995.
+            Your trusted neighbourhood grocer — bringing fresh quality and unbeatable prices to Lahore families since 2019.
           </motion.p>
         </motion.div>
 
