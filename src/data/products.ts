@@ -29,3 +29,13 @@ export interface Category {
   image: string;           // Supabase Storage public URL
   count: number;
 }
+
+// Empty arrays kept for backward compatibility with any direct imports.
+// All real data is fetched from Supabase in CartContext.
+export const products: Product[] = [];
+export const categories: Category[] = [];
+
+export const getFeaturedProducts   = (): Product[]           => [];
+export const getDiscountedProducts = (): Product[]           => [];
+export const getProductsByCategory = (_id: string): Product[] => [];
+export const getProductById        = (_id: string): Product | undefined => undefined;
