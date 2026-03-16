@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Package, ArrowRight, ShoppingBag, Clock, CheckCircle2, Truck, ChevronRight } from "lucide-react";
+import { Package, ArrowRight, ShoppingBag, Clock, CheckCircle2, Truck, ChevronRight, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +21,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
   preparing:         { label: "Preparing",        color: "bg-orange-500/15 text-orange-600 border-orange-500/25",   icon: Clock        },
   "out-for-delivery":{ label: "Out for Delivery", color: "bg-primary/15 text-primary border-primary/25",            icon: Truck        },
   delivered:         { label: "Delivered",        color: "bg-emerald-500/15 text-emerald-600 border-emerald-500/25",icon: CheckCircle2 },
+  cancelled:         { label: "Cancelled",        color: "bg-red-500/15 text-red-600 border-red-500/25",            icon: X            },
 };
 
 const MyOrders = () => {
