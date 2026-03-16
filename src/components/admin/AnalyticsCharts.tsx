@@ -8,11 +8,12 @@ import {
   TrendingUp, TrendingDown, ShoppingBag, Banknote,
   Star, CreditCard, Activity, Package, Users,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 /* ── Types ─────────────────────────────────────────────── */
-interface OrderItem  { product_id: string; quantity: number; price_at_time: number; }
-interface Order      { id: string; total: number; items: OrderItem[]; status: string; created_at: string; payment_method: string; }
+interface OrderItem { product_id: string; quantity: number; price_at_time: number; }
+interface Order     { id: string; total: number; items: OrderItem[]; status: string; created_at: string; payment_method: string; }
+interface DbProduct { id: string; name: string; [key: string]: any; }
 
 /* ── Palette ─────────────────────────────────────────── */
 const P = [
@@ -25,19 +26,8 @@ const P = [
   "hsl(199 89% 48%)",
 ];
 
-const PRODUCT_NAMES: Record<string, string> = {
-  fv1:"Fresh Apples",fv2:"Bananas",fv3:"Tomatoes",fv4:"Capsicum",fv5:"Spinach",
-  fv6:"Carrots",fv7:"Mangoes",fv8:"Potatoes",fv9:"Onions",fv10:"Watermelon",
-  d1:"Fresh Milk",d2:"Yogurt",d3:"Cheese",d4:"Butter",d5:"Cream",
-  d6:"Eggs",d7:"Paneer",d9:"Lassi",d10:"Mozzarella",
-  b1:"Green Tea",b2:"Orange Juice",b3:"Cola",b4:"Water",b5:"Mango Juice",
-  bk1:"White Bread",bk2:"Brown Bread",bk3:"Croissants",bk4:"Donuts",bk6:"Naan",
-  s1:"Chips",s2:"Nuts",s3:"Cookies",s4:"Popcorn",s7:"Nimko",
-  h1:"Dish Soap",h2:"Detergent",pc1:"Shampoo",pc2:"Body Wash",pc3:"Toothpaste",
-};
-
 const PAYMENT_LABEL: Record<string, string> = {
-  cod:"Cash on Delivery", card:"Card", jazzcash:"JazzCash", easypaisa:"Easypaisa",
+  cod: "Cash on Delivery", card: "Card", jazzcash: "JazzCash", easypaisa: "Easypaisa",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -53,7 +43,7 @@ const ChartTooltip = ({ active, payload, label }: TooltipProps<number, string>) 
       {label && <p className="font-bold text-foreground mb-1.5">{label}</p>}
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full chart-dot" style={{ '--chart-dot-color': p.color ?? P[i] } as React.CSSProperties} />
+          <div className="w-2 h-2 rounded-full" style={{ background: p.color ?? P[i] }} />
           <span className="text-muted-foreground">{p.name ?? "Value"}:</span>
           <span className="font-bold text-foreground">
             {typeof p.value === "number" && p.name?.toLowerCase().includes("revenue")
@@ -78,11 +68,11 @@ const KpiCard = ({
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, type: "spring", stiffness: 130 }}
     whileHover={{ y: -4, scale: 1.02 }}
-    className="bg-card rounded-2xl border border-border/60 p-5 shadow-sm hover:shadow-lg transition-all"
+    className="bg-card rounded-2xl border border-border/60 p-4 md:p-5 shadow-sm hover:shadow-lg transition-all"
   >
     <div className="flex items-start justify-between mb-4">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg}`}>
-        <Icon className={`h-5 w-5 ${color}`} />
+      <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center ${bg}`}>
+        <Icon className={`h-4 w-4 md:h-5 md:w-5 ${color}`} />
       </div>
       {trend && (
         <span className={`flex items-center gap-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full
@@ -91,7 +81,7 @@ const KpiCard = ({
         </span>
       )}
     </div>
-    <p className="text-2xl font-extrabold leading-none mb-1">{value}</p>
+    <p className="text-xl md:text-2xl font-extrabold leading-none mb-1">{value}</p>
     <p className="text-xs font-bold text-muted-foreground">{label}</p>
     {sub && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{sub}</p>}
   </motion.div>
@@ -102,12 +92,7 @@ const ChartCard = ({ title, subtitle, icon: Icon, color, children, className = "
   title: string; subtitle?: string; icon?: any; color?: string;
   children: React.ReactNode; className?: string;
 }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 16 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ type: "spring", stiffness: 110 }}
-    className={`bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden ${className}`}
-  >
+  <div className={`bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden ${className}`}>
     <div className="flex items-center gap-3 px-5 py-4 border-b border-border/40">
       {Icon && (
         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${color || "bg-primary/10"}`}>
@@ -119,8 +104,8 @@ const ChartCard = ({ title, subtitle, icon: Icon, color, children, className = "
         {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
       </div>
     </div>
-    <div className="p-5">{children}</div>
-  </motion.div>
+    <div className="p-4 md:p-5">{children}</div>
+  </div>
 );
 
 /* ── Donut center label ─────────────────────────────── */
@@ -134,18 +119,45 @@ const DonutLabel = ({ viewBox, total }: any) => {
   );
 };
 
+/* ── Empty state icon ────────────────────────────────── */
+const BarChart3Icon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="20" x2="18" y2="10"/>
+    <line x1="12" y1="20" x2="12" y2="4"/>
+    <line x1="6" y1="20" x2="6" y2="14"/>
+  </svg>
+);
+
 /* ════════════════════════════════════════════════════════
    MAIN COMPONENT
 ════════════════════════════════════════════════════════ */
-const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
+const AnalyticsCharts = ({
+  orders,
+  products = [],
+}: {
+  orders: Order[];
+  products?: DbProduct[];
+}) => {
   const [revenueRange, setRevenueRange] = useState<7 | 14 | 30>(14);
+
+  /* ── Build product name map from live DB products ── */
+  const productNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    products.forEach(p => {
+      if (p.id && p.name) map.set(p.id, p.name);
+    });
+    return map;
+  }, [products]);
+
+  const getProductName = (id: string) =>
+    productNameMap.get(id) || id || "Unknown Product";
 
   /* ── Derived data ── */
   const active = useMemo(() => orders.filter(o => o.status !== "cancelled"), [orders]);
 
-  const revenue    = useMemo(() => active.reduce((s, o) => s + Number(o.total), 0), [active]);
-  const avgOrder   = useMemo(() => active.length ? revenue / active.length : 0, [active, revenue]);
-  const delivered  = useMemo(() => orders.filter(o => o.status === "delivered").length, [orders]);
+  const revenue  = useMemo(() => active.reduce((s, o) => s + Number(o.total), 0), [active]);
+  const avgOrder = useMemo(() => active.length ? revenue / active.length : 0, [active, revenue]);
+  const delivered = useMemo(() => orders.filter(o => o.status === "delivered").length, [orders]);
 
   /* Daily sales */
   const dailySales = useMemo(() => {
@@ -163,24 +175,30 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
   }, [active, revenueRange]);
 
   const peakDay = useMemo(() =>
-    dailySales.reduce((best, d) => d.revenue > best.revenue ? d : best, { date: "—", revenue: 0, orders: 0 }),
+    dailySales.reduce(
+      (best, d) => d.revenue > best.revenue ? d : best,
+      { date: "—", revenue: 0, orders: 0 }
+    ),
   [dailySales]);
 
-  /* Top products */
+  /* Top products — uses live product names */
   const topProducts = useMemo(() => {
     const map = new Map<string, { name: string; qty: number; rev: number }>();
     active.forEach(o => {
       if (!Array.isArray(o.items)) return;
       o.items.forEach(item => {
-        const name = PRODUCT_NAMES[item.product_id] || item.product_id || "Unknown";
-        const cur  = map.get(name) || { name, qty: 0, rev: 0 };
-        cur.qty += item.quantity || 1;
-        cur.rev += (item.price_at_time || 0) * (item.quantity || 1);
-        map.set(name, cur);
+        const name = getProductName(item.product_id);
+        const cur  = map.get(item.product_id) || { name, qty: 0, rev: 0 };
+        cur.name   = name; // update in case it resolved late
+        cur.qty   += item.quantity || 1;
+        cur.rev   += (item.price_at_time || 0) * (item.quantity || 1);
+        map.set(item.product_id, cur);
       });
     });
-    return Array.from(map.values()).sort((a, b) => b.qty - a.qty).slice(0, 6);
-  }, [active]);
+    return Array.from(map.values())
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 6);
+  }, [active, productNameMap]);
 
   /* Payment breakdown */
   const paymentData = useMemo(() => {
@@ -201,11 +219,11 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
 
   const statusTotal = statusData.reduce((s, i) => s + i.value, 0);
 
-  /* ── Empty ── */
+  /* ── Empty state ── */
   if (!active.length) return (
     <div className="flex flex-col items-center py-24 gap-4 text-center">
       <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}>
-        <BarChart3 className="h-16 w-16 text-muted-foreground/20 mx-auto" />
+        <BarChart3Icon className="h-16 w-16 text-muted-foreground/20 mx-auto" />
       </motion.div>
       <p className="font-display font-bold text-xl">No analytics yet</p>
       <p className="text-muted-foreground text-sm max-w-xs">Analytics will appear once you have completed orders.</p>
@@ -213,24 +231,23 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 md:space-y-6">
 
       {/* ══ KPI ROW ══════════════════════════════════════ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Total Revenue"  value={`PKR ${Math.round(revenue).toLocaleString()}`}       icon={Banknote}     color="text-primary"      bg="bg-primary/10"      trend="up"   delay={0}    sub={`${active.length} orders`} />
-        <KpiCard label="Avg Order Value" value={`PKR ${Math.round(avgOrder).toLocaleString()}`}     icon={ShoppingBag}  color="text-secondary"    bg="bg-secondary/10"    trend="up"   delay={0.07} sub="Per transaction" />
-        <KpiCard label="Delivered"       value={`${delivered}`}                                     icon={Package}      color="text-emerald-600"  bg="bg-emerald-500/10"  trend="up"   delay={0.14} sub={`of ${orders.length} total`} />
-        <KpiCard label="Peak Day"        value={`PKR ${Math.round(peakDay.revenue).toLocaleString()}`} icon={TrendingUp} color="text-amber-600"    bg="bg-amber-500/10"    trend="up"   delay={0.21} sub={peakDay.date} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <KpiCard label="Total Revenue"   value={`PKR ${Math.round(revenue).toLocaleString()}`}         icon={Banknote}    color="text-primary"     bg="bg-primary/10"     trend="up" delay={0}    sub={`${active.length} orders`} />
+        <KpiCard label="Avg Order Value" value={`PKR ${Math.round(avgOrder).toLocaleString()}`}        icon={ShoppingBag} color="text-secondary"   bg="bg-secondary/10"   trend="up" delay={0.07} sub="Per transaction" />
+        <KpiCard label="Delivered"       value={`${delivered}`}                                        icon={Package}     color="text-emerald-600" bg="bg-emerald-500/10" trend="up" delay={0.14} sub={`of ${orders.length} total`} />
+        <KpiCard label="Peak Day"        value={`PKR ${Math.round(peakDay.revenue).toLocaleString()}`} icon={TrendingUp}  color="text-amber-600"   bg="bg-amber-500/10"   trend="up" delay={0.21} sub={peakDay.date} />
       </div>
 
-      {/* ══ REVENUE CHART — full width ═══════════════════ */}
+      {/* ══ REVENUE CHART ════════════════════════════════ */}
       <ChartCard
         title="Revenue Over Time"
         subtitle={`Last ${revenueRange} days · ${active.length} active orders`}
         icon={Activity}
         color="bg-primary/10"
       >
-        {/* Range toggle */}
         <div className="flex justify-end gap-1.5 mb-4">
           {([7, 14, 30] as const).map(r => (
             <button
@@ -246,22 +263,18 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
           ))}
         </div>
 
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={dailySales} margin={{ top: 8, right: 4, left: 8, bottom: 0 }}>
             <defs>
               <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor="hsl(var(--primary))" stopOpacity={0.3} />
                 <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0}   />
               </linearGradient>
-              <linearGradient id="gOrd" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor="hsl(var(--secondary))" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity={0}    />
-              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
             <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
             <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))"
-              tickFormatter={v => `PKR ${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} width={70} />
+              tickFormatter={v => `PKR ${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} width={70} />
             <Tooltip content={<ChartTooltip />} />
             <Area type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" strokeWidth={2.5}
               fill="url(#gRev)" dot={false} activeDot={{ r: 6, strokeWidth: 0, fill: "hsl(var(--primary))" }} />
@@ -269,10 +282,10 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* ══ BENTO BOTTOM ROW ═════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+      {/* ══ BOTTOM ROW ═══════════════════════════════════ */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-5">
 
-        {/* Top products — wide */}
+        {/* Top products */}
         <div className="md:col-span-5">
           <ChartCard title="Top Products" subtitle="By units sold" icon={Star} color="bg-amber-500/10">
             {topProducts.length === 0 ? (
@@ -282,8 +295,10 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
                 <BarChart data={topProducts} layout="vertical" margin={{ left: 0, right: 20, top: 4, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                   <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis dataKey="name" type="category" width={110} tickLine={false} axisLine={false}
-                    tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }} />
+                  <YAxis dataKey="name" type="category" width={100} tickLine={false} axisLine={false}
+                    tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }}
+                    tickFormatter={v => v.length > 14 ? `${v.slice(0, 14)}…` : v}
+                  />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }} />
                   <Bar dataKey="qty" name="Units sold" radius={[0, 7, 7, 0]} barSize={20}>
                     {topProducts.map((_, i) => <Cell key={i} fill={P[i % P.length]} />)}
@@ -294,7 +309,7 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
           </ChartCard>
         </div>
 
-        {/* Donut — payment */}
+        {/* Payment methods donut */}
         <div className="md:col-span-3">
           <ChartCard title="Payment Methods" subtitle={`${orders.length} orders`} icon={CreditCard} color="bg-primary/10">
             <div className="flex flex-col items-center">
@@ -312,13 +327,12 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
                 </PieChart>
               </ResponsiveContainer>
 
-              {/* Legend */}
               <div className="w-full space-y-2 mt-2">
                 {paymentData.map((item, i) => {
                   const pct = Math.round((item.value / orders.length) * 100);
                   return (
                     <div key={item.name} className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 chart-dot" style={{ '--chart-dot-color': P[i % P.length] } as React.CSSProperties} />
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: P[i % P.length] }} />
                       <span className="text-xs text-muted-foreground flex-1 truncate">{item.name}</span>
                       <span className="text-xs font-bold">{item.value}</span>
                       <span className="text-[10px] text-muted-foreground w-7 text-right">{pct}%</span>
@@ -330,19 +344,19 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
           </ChartCard>
         </div>
 
-        {/* Order status — radial progress bars */}
+        {/* Order status */}
         <div className="md:col-span-4">
           <ChartCard title="Order Status" subtitle={`${statusTotal} total orders`} icon={Users} color="bg-secondary/10">
             <div className="space-y-4">
               {statusData.map((s, i) => {
-                const pct = statusTotal > 0 ? Math.round((s.value / statusTotal) * 100) : 0;
+                const pct   = statusTotal > 0 ? Math.round((s.value / statusTotal) * 100) : 0;
                 const color = STATUS_COLOR[s.name] || P[i % P.length];
                 const label = s.name.charAt(0).toUpperCase() + s.name.slice(1).replace(/-/g, " ");
                 return (
                   <div key={s.name} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 chart-dot" style={{ '--chart-dot-color': color } as React.CSSProperties} />
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
                         <span className="font-semibold">{label}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -355,8 +369,8 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
                         initial={{ width: 0 }}
                         animate={{ width: `${pct}%` }}
                         transition={{ duration: 0.8, delay: i * 0.08, ease: "easeOut" }}
-                        className="h-full rounded-full chart-bar"
-                        style={{ '--chart-bar-color': color } as React.CSSProperties}
+                        className="h-full rounded-full"
+                        style={{ background: color }}
                       />
                     </div>
                   </div>
@@ -364,11 +378,18 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
               })}
             </div>
 
-            {/* Mini summary */}
             <div className="mt-4 pt-4 border-t border-border/40 grid grid-cols-2 gap-2">
               {[
-                { label: "Completion", value: `${statusTotal > 0 ? Math.round(((statusData.find(s => s.name === "delivered")?.value ?? 0) / statusTotal) * 100) : 0}%`, color: "text-emerald-600" },
-                { label: "Cancelled",  value: `${statusData.find(s => s.name === "cancelled")?.value ?? 0}`, color: "text-red-500" },
+                {
+                  label: "Completion",
+                  value: `${statusTotal > 0 ? Math.round(((statusData.find(s => s.name === "delivered")?.value ?? 0) / statusTotal) * 100) : 0}%`,
+                  color: "text-emerald-600",
+                },
+                {
+                  label: "Cancelled",
+                  value: `${statusData.find(s => s.name === "cancelled")?.value ?? 0}`,
+                  color: "text-red-500",
+                },
               ].map(m => (
                 <div key={m.label} className="bg-muted/40 rounded-xl p-2.5 text-center">
                   <p className={`text-lg font-extrabold leading-none ${m.color}`}>{m.value}</p>
@@ -383,12 +404,5 @@ const AnalyticsCharts = ({ orders }: { orders: Order[] }) => {
     </div>
   );
 };
-
-/* eslint-disable-next-line */
-const BarChart3 = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-  </svg>
-);
 
 export default AnalyticsCharts;

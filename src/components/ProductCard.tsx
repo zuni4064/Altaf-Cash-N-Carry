@@ -2,24 +2,35 @@ import { Product } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, Heart, Eye } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Heart, Eye, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   motion, AnimatePresence,
   useMotionValue, useTransform, useSpring,
 } from "framer-motion";
-import { Badge } from "@/components/ui/badge";
-import { StarRating } from "@/components/StarRating";
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
 const BADGE_CONFIG: Record<string, { style: string; label: string }> = {
-  bestseller:    { style: "bg-amber-500 text-white",          label: "⭐ Best Seller" },
-  discount:      { style: "bg-red-500 text-white",            label: ""               },
-  new:           { style: "bg-emerald-500 text-white",        label: "✨ New"          },
-  "out-of-stock":{ style: "bg-muted text-muted-foreground",   label: "Sold Out"       },
+  bestseller:     { style: "bg-amber-500 text-white",        label: "⭐ Best Seller" },
+  discount:       { style: "bg-red-500 text-white",          label: ""               },
+  new:            { style: "bg-emerald-500 text-white",      label: "✨ New"          },
+  "out-of-stock": { style: "bg-muted text-muted-foreground", label: "Sold Out"       },
 };
+
+/* ── Mini star display ─────────────────────────────────── */
+const Stars = ({ rating }: { rating: number }) => (
+  <div className="flex items-center gap-0.5">
+    {Array.from({ length: 5 }).map((_, i) => (
+      <Star
+        key={i}
+        className={`h-3 w-3 ${i < Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+      />
+    ))}
+  </div>
+);
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
@@ -29,9 +40,28 @@ const ProductCard = ({ product }: { product: Product }) => {
   const isWishlisted = isInWishlist(product.id);
   const cardRef      = useRef<HTMLDivElement>(null);
 
-  /* ── 3-D tilt ───────────────────────────────────────────── */
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
+  /* ── Real rating fetched from product_ratings view ── */
+  const [avgRating,    setAvgRating]    = useState<number | null>(null);
+  const [reviewCount,  setReviewCount]  = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("product_ratings")
+      .select("avg_rating, review_count")
+      .eq("product_id", product.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setAvgRating(Number(data.avg_rating));
+        setReviewCount(Number(data.review_count));
+      });
+    return () => { cancelled = true; };
+  }, [product.id]);
+
+  /* ── 3-D tilt ── */
+  const mouseX  = useMotionValue(0);
+  const mouseY  = useMotionValue(0);
   const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [7, -7]),  { stiffness: 300, damping: 30 });
   const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-7,  7]), { stiffness: 300, damping: 30 });
 
@@ -62,10 +92,9 @@ const ProductCard = ({ product }: { product: Product }) => {
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       className="group relative bg-card rounded-2xl overflow-hidden border border-border/50
-                 shadow-sm hover:shadow-xl hover:shadow-primary/10
-                 transition-shadow duration-300"
+                 shadow-sm hover:shadow-xl hover:shadow-primary/10 transition-shadow duration-300"
     >
-      {/* ── Glow border on hover ─────────────────────────────── */}
+      {/* Glow border on hover */}
       <motion.div
         className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-300 -z-10"
         style={{
@@ -74,7 +103,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         }}
       />
 
-      {/* ══ IMAGE AREA ══════════════════════════════════════════ */}
+      {/* ── IMAGE ── */}
       <div className="relative overflow-hidden aspect-[4/3]">
         <Link to={`/product/${product.id}`}>
           <motion.img
@@ -86,19 +115,14 @@ const ProductCard = ({ product }: { product: Product }) => {
             loading="lazy"
             onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE; }}
           />
-
-          {/* Dark scrim on hover for action buttons */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-300" />
-
-          {/* Quick-view pill that slides up on hover */}
+          {/* Quick view pill */}
           <motion.div
             initial={{ y: 40, opacity: 0 }}
-            whileHover={{ y: 0,  opacity: 1 }}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none
-                       group-hover:pointer-events-auto"
+            whileHover={{ y: 0, opacity: 1 }}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none group-hover:pointer-events-auto"
           >
-            <span className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm
-                             text-foreground text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
+            <span className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm text-foreground text-xs font-bold px-3 py-1.5 rounded-full shadow-md">
               <Eye className="h-3 w-3" /> Quick View
             </span>
           </motion.div>
@@ -113,22 +137,19 @@ const ProductCard = ({ product }: { product: Product }) => {
             className="absolute top-2.5 left-2.5 z-10"
           >
             <span className={`${badgeCfg.style} text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm`}>
-              {product.badge === "discount"
-                ? `−${product.discount}%`
-                : badgeCfg.label}
+              {product.badge === "discount" ? `−${product.discount}%` : badgeCfg.label}
             </span>
           </motion.div>
         )}
 
-        {/* Wishlist button */}
+        {/* Wishlist */}
         <div className="absolute top-2.5 right-2.5 z-10">
           <motion.button
             whileTap={{ scale: 0.7 }}
             whileHover={{ scale: 1.15 }}
             aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
             onClick={(e) => { e.preventDefault(); toggleWishlist(product); }}
-            className="w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-md
-                       flex items-center justify-center border border-white/40"
+            className="w-8 h-8 rounded-full bg-white/85 backdrop-blur-sm shadow-md flex items-center justify-center border border-white/40"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -138,42 +159,37 @@ const ProductCard = ({ product }: { product: Product }) => {
                 exit={{   scale: 0, rotate:  20 }}
                 transition={{ type: "spring", stiffness: 320, damping: 18 }}
               >
-                <Heart
-                  className={`h-4 w-4 transition-colors
-                    ${isWishlisted ? "fill-red-500 text-red-500" : "text-gray-500"}`}
-                />
+                <Heart className={`h-4 w-4 transition-colors ${isWishlisted ? "fill-red-500 text-red-500" : "text-gray-500"}`} />
               </motion.div>
             </AnimatePresence>
           </motion.button>
         </div>
       </div>
 
-      {/* ══ CARD BODY ════════════════════════════════════════════ */}
+      {/* ── BODY ── */}
       <div className="p-3">
-
-        {/* Category */}
         <p className="text-[10px] text-muted-foreground font-semibold tracking-widest uppercase mb-0.5">
           {product.category.replace(/-/g, " & ")}
         </p>
 
-        {/* Product name */}
         <Link to={`/product/${product.id}`}>
           <h3 className="font-bold text-sm leading-snug line-clamp-1 hover:text-primary transition-colors mb-1">
             {product.name}
           </h3>
         </Link>
 
-        {/* Star rating */}
-        {product.rating !== undefined && (
-          <div className="mb-1.5">
-            <StarRating rating={product.rating} reviewCount={product.reviewCount} />
+        {/* Real rating — only shown when data has loaded */}
+        {avgRating !== null && reviewCount !== null && reviewCount > 0 && (
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Stars rating={avgRating} />
+            <span className="text-[10px] text-muted-foreground font-medium">
+              {avgRating.toFixed(1)} ({reviewCount})
+            </span>
           </div>
         )}
 
-        {/* ── Price row + Add button ─────────────────────────── */}
+        {/* Price + cart */}
         <div className="flex items-center justify-between gap-2 mt-2">
-
-          {/* Price */}
           <div className="flex flex-col">
             <div className="flex items-baseline gap-1">
               <motion.span
@@ -190,104 +206,52 @@ const ProductCard = ({ product }: { product: Product }) => {
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">
-              per {product.unit}
-            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">per {product.unit}</span>
           </div>
 
-          {/* Cart controls */}
           <AnimatePresence mode="wait">
             {!inStock ? (
-              <motion.span
-                key="oos"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-[10px] text-muted-foreground italic"
-              >
+              <motion.span key="oos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="text-[10px] text-muted-foreground italic">
                 Out of stock
               </motion.span>
-
             ) : cartItem ? (
-              /* Stepper */
-              <motion.div
-                key="stepper"
-                initial={{ opacity: 0, scale: 0.75 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{   opacity: 0, scale: 0.75 }}
+              <motion.div key="stepper"
+                initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.75 }}
                 transition={{ type: "spring", stiffness: 300 }}
-                className="flex items-center gap-1"
-              >
+                className="flex items-center gap-1">
                 <motion.div whileTap={{ scale: 0.8 }}>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-6 w-6 rounded-full border-border/60"
-                    aria-label="Decrease quantity"
-                    onClick={() =>
-                      cartItem.quantity <= 1
-                        ? removeFromCart(product.id)
-                        : updateQuantity(product.id, cartItem.quantity - 1)
-                    }
-                  >
+                  <Button size="icon" variant="outline" className="h-6 w-6 rounded-full border-border/60"
+                    onClick={() => cartItem.quantity <= 1 ? removeFromCart(product.id) : updateQuantity(product.id, cartItem.quantity - 1)}>
                     <Minus className="h-2.5 w-2.5" />
                   </Button>
                 </motion.div>
-
                 <AnimatePresence mode="wait">
-                  <motion.span
-                    key={cartItem.quantity}
-                    initial={{ y: -8, opacity: 0 }}
-                    animate={{ y:  0, opacity: 1 }}
-                    exit={{   y:  8, opacity: 0 }}
+                  <motion.span key={cartItem.quantity}
+                    initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 8, opacity: 0 }}
                     transition={{ duration: 0.14 }}
-                    className="w-5 text-center text-sm font-bold text-primary"
-                  >
+                    className="w-5 text-center text-sm font-bold text-primary">
                     {cartItem.quantity}
                   </motion.span>
                 </AnimatePresence>
-
                 <motion.div whileTap={{ scale: 0.8 }}>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-6 w-6 rounded-full border-border/60"
-                    aria-label="Increase quantity"
+                  <Button size="icon" variant="outline" className="h-6 w-6 rounded-full border-border/60"
                     disabled={product.stock !== undefined && cartItem.quantity >= product.stock}
-                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
-                  >
+                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}>
                     <Plus className="h-2.5 w-2.5" />
                   </Button>
                 </motion.div>
               </motion.div>
-
             ) : (
-              /* Add button */
-              <motion.div
-                key="add"
-                initial={{ opacity: 0, scale: 0.75 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{   opacity: 0, scale: 0.75 }}
-                transition={{ type: "spring", stiffness: 300 }}
-                whileHover={{ scale: 1.07 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <Button
-                  size="sm"
-                  onClick={() => addToCart(product)}
-                  className="h-8 px-3 text-xs font-bold rounded-full bg-primary
-                             text-primary-foreground hover:bg-primary/90 shadow-md
-                             shadow-primary/25 relative overflow-hidden"
-                >
-                  {/* Shine sweep */}
-                  <motion.span
-                    className="absolute inset-0 bg-white/20 skew-x-[-15deg]"
-                    initial={{ x: "-130%" }}
-                    whileHover={{ x: "230%" }}
-                    transition={{ duration: 0.30 }}
-                  />
-                  <ShoppingCart className="h-3 w-3 mr-1" />
-                  Add
+              <motion.div key="add"
+                initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.75 }}
+                transition={{ type: "keyframes", stiffness: 300 }}
+                whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.9 }}>
+                <Button size="sm" onClick={() => addToCart(product)}
+                  className="h-8 px-3 text-xs font-bold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 relative overflow-hidden">
+                  <motion.span className="absolute inset-0 bg-white/20 skew-x-[-15deg]"
+                    initial={{ x: "-130%" }} whileHover={{ x: "230%" }} transition={{ duration: 0.30 }} />
+                  <ShoppingCart className="h-3 w-3 mr-1" /> Add
                 </Button>
               </motion.div>
             )}
@@ -296,12 +260,10 @@ const ProductCard = ({ product }: { product: Product }) => {
 
         {/* Stock pill */}
         <div className="mt-2">
-          <span
-            className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full
-              ${(product.stock ?? 0) > 0
-                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                : "bg-destructive/10 text-destructive border border-destructive/20"}`}
-          >
+          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full
+            ${(product.stock ?? 0) > 0
+              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+              : "bg-destructive/10 text-destructive border border-destructive/20"}`}>
             {(product.stock ?? 0) > 0 ? `${product.stock} in stock` : "Out of stock"}
           </span>
         </div>

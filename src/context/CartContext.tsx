@@ -16,6 +16,8 @@ export interface Order {
   id: string;
   items: CartItem[];
   total: number;
+  subtotal: number;
+  deliveryCharge: number;
   customerName: string;
   customerEmail?: string;
   phone: string;
@@ -59,7 +61,7 @@ function mapDbProduct(row: any): Product {
     price:         row.price         ?? 0,
     unit:          row.unit          ?? "piece",
     description:   row.description   ?? "",
-    image:         row.image         ?? "",   // direct Supabase Storage URL
+    image:         row.image         ?? "",
     badge:         row.badge         ?? undefined,
     discount:      row.discount      ?? undefined,
     originalPrice: row.original_price ?? undefined,
@@ -82,11 +84,10 @@ function mapDbCategory(row: any): Category {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Helper: upload an image file to Supabase Storage and return the public URL
-   Call this from the admin panel when adding/editing a product.
 ───────────────────────────────────────────────────────────────────────────── */
 export async function uploadProductImage(file: File, productId: string): Promise<string> {
-  const ext      = file.name.split(".").pop() ?? "jpg";
-  const path     = `products/${productId}-${Date.now()}.${ext}`;
+  const ext  = file.name.split(".").pop() ?? "jpg";
+  const path = `products/${productId}-${Date.now()}.${ext}`;
 
   const { error } = await supabase.storage
     .from("product-images")
@@ -119,7 +120,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try { localStorage.setItem("cart_items", JSON.stringify(items)); } catch { }
   }, [items]);
 
-  // ── Products & Categories — fetched purely from Supabase ─────────────────
+  // ── Products & Categories ─────────────────────────────────────────────────
   const [productsState,   setProductsState]   = useState<Product[]>([]);
   const [categoriesState, setCategoriesState] = useState<Category[]>([]);
   const [isInitialized,   setIsInitialized]   = useState(false);
@@ -132,7 +133,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const init = async () => {
       try {
-        // Fetch products
         const { data: dbProducts, error: prodError } = await supabase
           .from("products")
           .select("*")
@@ -141,7 +141,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (prodError) throw prodError;
         setProductsState((dbProducts ?? []).map(mapDbProduct));
 
-        // Fetch categories
         const { data: dbCategories, error: catError } = await supabase
           .from("categories")
           .select("*")
@@ -218,17 +217,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })
           .filter(Boolean) as CartItem[];
 
+        const deliveryCharge = o.delivery_charge ?? 0;
+        const total          = o.total           ?? 0;
+
         return {
-          id:            o.id,
-          items:         mappedItems,
-          total:         o.total,
-          customerName:  o.customer_name,
-          phone:         o.phone,
-          address:       o.address,
-          date:          new Date(o.created_at).toLocaleString("en-PK", { dateStyle: "full", timeStyle: "short" }),
-          status:        o.status,
-          paymentMethod: o.payment_method  ?? "COD",
-          paymentStatus: o.payment_status  ?? "Pending",
+          id:             o.id,
+          items:          mappedItems,
+          total,
+          subtotal:       o.subtotal ?? (total - deliveryCharge),
+          deliveryCharge,
+          customerName:   o.customer_name,
+          phone:          o.phone,
+          address:        o.address,
+          date:           new Date(o.created_at).toLocaleString("en-PK", { dateStyle: "full", timeStyle: "short" }),
+          status:         o.status,
+          paymentMethod:  o.payment_method  ?? "COD",
+          paymentStatus:  o.payment_status  ?? "Pending",
         };
       });
 
@@ -276,9 +280,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
-    const product    = productsState.find(p => p.id === productId);
-    const maxQty     = product?.stock ?? 999;
-    const clamped    = Math.min(quantity, maxQty);
+    const product = productsState.find(p => p.id === productId);
+    const maxQty  = product?.stock ?? 999;
+    const clamped = Math.min(quantity, maxQty);
     if (clamped <= 0) {
       setItems(prev => prev.filter(i => i.product.id !== productId));
     } else {
@@ -331,19 +335,29 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const total    = subtotal + deliveryCharge;
 
     const order: Order = {
-      id: orderId, items: [...items], total,
+      id: orderId, items: [...items],
+      total:         Math.round(total),
+      subtotal:      Math.round(subtotal),
+      deliveryCharge: Math.round(deliveryCharge),
       customerName: name, customerEmail: email, phone, address,
       date: new Date().toLocaleString("en-PK", { dateStyle: "full", timeStyle: "short" }),
       status: "Pending", paymentMethod, paymentStatus,
     };
 
     try {
-      // 1. Insert order row
+      // 1. Insert order row — FIX: now saves subtotal and delivery_charge separately
       const { error: orderError } = await supabase.from("orders").insert({
-        id: orderId, user_id: user?.id ?? null,
-        customer_name: name, customer_email: email,
-        phone, address, total: Math.round(total),
-        payment_method: paymentMethod, payment_status: paymentStatus,
+        id:              orderId,
+        user_id:         user?.id ?? null,
+        customer_name:   name,
+        customer_email:  email,
+        phone,
+        address,
+        subtotal:        Math.round(subtotal),        // ← products-only total
+        delivery_charge: Math.round(deliveryCharge),  // ← delivery fee
+        total:           Math.round(total),            // ← grand total
+        payment_method:  paymentMethod,
+        payment_status:  paymentStatus,
       });
       if (orderError) throw orderError;
 
@@ -370,7 +384,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq("id", item.product.id);
       }
 
-      // Update local stock state
       setProductsState(prev => prev.map(p => {
         const bought = items.find(i => i.product.id === p.id);
         return bought ? { ...p, stock: Math.max(0, (p.stock ?? 0) - bought.quantity) } : p;
@@ -421,7 +434,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     <span>Subtotal</span><span>PKR ${Math.round(subtotal)}</span>
                   </div>
                   <div style="display:flex;justify-content:space-between;margin:8px 0;color:#666;">
-                    <span>Delivery</span><span>PKR ${Math.round(deliveryCharge)}</span>
+                    <span>Delivery</span><span>${deliveryCharge > 0 ? `PKR ${Math.round(deliveryCharge)}` : "FREE"}</span>
                   </div>
                   <div style="display:flex;justify-content:space-between;margin:12px 0;font-size:20px;font-weight:700;">
                     <span>Total</span><span style="color:#1a5c2a;">PKR ${Math.round(total)}</span>
@@ -434,8 +447,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             </div>
           </body></html>`;
 
-          const sId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-          const tId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+          const sId  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+          const tId  = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
           const pKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
           if (sId && tId && pKey) {
             emailjs.send(sId, tId, { subject: "Order Confirmed", to_email: email, order_id: orderId, html_content: html }, pKey)

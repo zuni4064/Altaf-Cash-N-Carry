@@ -3,6 +3,8 @@ import { motion, useScroll, useTransform, useSpring, useMotionValue } from "fram
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { useRef, useEffect } from "react";
 
+const FONT = "'Plus Jakarta Sans', sans-serif";
+
 const GrainOverlay = () => (
   <div
     className="pointer-events-none absolute inset-0 z-10 opacity-[0.04] mix-blend-overlay"
@@ -19,7 +21,7 @@ const ScrollLine = ({ progress }: { progress: any }) => {
   return (
     <motion.div
       className="fixed top-0 left-0 right-0 h-[2px] z-[100] origin-left"
-      style={{ scaleX, background: "linear-gradient(90deg,#34d399,#fbbf24)" }}
+      style={{ scaleX, background: "linear-gradient(90deg,#d97706,#fbbf24,#65a30d)" }}
     />
   );
 };
@@ -59,6 +61,7 @@ const HeroSection = () => {
         className="relative w-full overflow-hidden"
         style={{ height: "clamp(520px, 76vh, 780px)" }}
       >
+        {/* Background */}
         <motion.div className="absolute inset-0 z-0" style={{ scale: bgScale, y: bgY }}>
           <div className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: "url('https://images.unsplash.com/photo-1542838132-92c53300491e?w=2000&q=90')" }} />
@@ -70,10 +73,12 @@ const HeroSection = () => {
           style={{ backgroundImage: "linear-gradient(rgba(255,255,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,1) 1px,transparent 1px)", backgroundSize: "80px 80px" }} />
         <GrainOverlay />
 
+        {/* Content */}
         <motion.div
           className="absolute inset-0 z-[5] flex flex-col items-center justify-center px-6 text-center"
           style={{ opacity: fgOpacity, y: fgY }}
         >
+          {/* Eyebrow */}
           <motion.div
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -81,16 +86,25 @@ const HeroSection = () => {
             className="mb-5 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/15 bg-white/5 backdrop-blur-xl"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-bold tracking-[0.22em] uppercase text-white/65">Altaf Cash & Carry · Est. 2019</span>
+            <span className="text-[11px] font-semibold tracking-[0.22em] uppercase text-white/65"
+              style={{ fontFamily: FONT }}>
+              Altaf Cash & Carry · Est. 2019
+            </span>
           </motion.div>
 
+          {/* Headline */}
           <motion.div style={{ rotateX: tiltX, rotateY: tiltY, transformPerspective: 1100, transformStyle: "preserve-3d" }}>
             <motion.h1
               initial={{ opacity: 0, y: 50, filter: "blur(16px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               transition={{ duration: 1.0, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="font-black leading-[0.92] tracking-tight text-white"
-              style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(3rem, 10vw, 8.5rem)", textShadow: "0 24px 60px rgba(0,0,0,0.45)" }}
+              className="font-black leading-[0.95] text-white"
+              style={{
+                fontFamily: FONT,
+                fontSize: "clamp(2.8rem, 9vw, 7.5rem)",
+                textShadow: "0 24px 60px rgba(0,0,0,0.45)",
+                letterSpacing: "-0.03em",
+              }}
             >
               Shop Smart.
               <br />
@@ -98,22 +112,30 @@ const HeroSection = () => {
                 initial={{ opacity: 0, x: -24 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.9, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                style={{ WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text", backgroundImage: "linear-gradient(135deg,#6ee7b7 0%,#34d399 45%,#fbbf24 100%)" }}
+                style={{
+                  WebkitTextFillColor: "transparent",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  backgroundImage: "linear-gradient(135deg,#6ee7b7 0%,#34d399 45%,#fbbf24 100%)",
+                }}
               >
-               Live Better.
+                Live Better.
               </motion.span>
             </motion.h1>
           </motion.div>
 
+          {/* Subtitle */}
           <motion.p
             initial={{ opacity: 0, y: 22 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.75, delay: 0.65, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-6 max-w-lg text-base md:text-lg font-light leading-relaxed text-white/55"
+            className="mt-6 max-w-lg text-base md:text-lg leading-relaxed text-white/55"
+            style={{ fontFamily: FONT, fontWeight: 400 }}
           >
             Fresh groceries, household essentials, personal care, bakery items and more — in Lahore.
           </motion.p>
 
+          {/* CTAs */}
           <motion.div
             initial={{ opacity: 0, y: 22 }}
             animate={{ opacity: 1, y: 0 }}
@@ -125,7 +147,7 @@ const HeroSection = () => {
                 whileHover={{ scale: 1.06, y: -3, boxShadow: "0 18px 44px rgba(52,211,153,0.38)" }}
                 whileTap={{ scale: 0.97 }}
                 className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm text-emerald-950"
-                style={{ background: "linear-gradient(135deg,#6ee7b7,#34d399)" }}
+                style={{ background: "linear-gradient(135deg,#6ee7b7,#34d399)", fontFamily: FONT }}
               >
                 <ShoppingBag className="h-4 w-4 group-hover:rotate-12 transition-transform duration-300" />
                 Shop Now
@@ -137,6 +159,7 @@ const HeroSection = () => {
                 whileHover={{ scale: 1.06, y: -3, backgroundColor: "rgba(255,255,255,0.12)" }}
                 whileTap={{ scale: 0.97 }}
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm text-white border border-white/20 bg-white/6 backdrop-blur-xl transition-all"
+                style={{ fontFamily: FONT }}
               >
                 Browse Categories
               </motion.button>

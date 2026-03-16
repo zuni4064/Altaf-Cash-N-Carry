@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { products as defaultProducts, categories, type Product } from "@/data/products";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { products as defaultProducts, categories as staticCategories, type Product } from "@/data/products";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,13 @@ import { Switch } from "@/components/ui/switch";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Pencil, Trash2, Search, Package, RefreshCw,
-  AlertTriangle, CheckCircle2, TrendingDown, BarChart3,
-  ShieldCheck, SlidersHorizontal, X, Zap, Star, Tag,
+  AlertTriangle, CheckCircle2, TrendingDown,
+  SlidersHorizontal, X, Zap, FolderPlus, Loader2, ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+
+/* ── Constants ───────────────────────────────────────────── */
+const PRESET_UNITS = ["kg", "g", "liter", "ml", "piece", "pack", "bottle", "dozen", "box", "bundle", "roll", "tube", "can"];
 
 /* ── Helpers ─────────────────────────────────────────────── */
 const getImageUrl = (img: any): string => {
@@ -25,10 +29,13 @@ const getImageUrl = (img: any): string => {
 };
 const PLACEHOLDER = "/placeholder.svg";
 
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
 const BADGE_META: Record<string, { label: string; style: string }> = {
-  bestseller: { label: "⭐ Best Seller", style: "bg-amber-500/20 text-amber-700 border-amber-400/50"  },
+  bestseller: { label: "⭐ Best Seller", style: "bg-amber-500/20 text-amber-700 border-amber-400/50" },
   new:        { label: "✨ New",         style: "bg-emerald-500/20 text-emerald-700 border-emerald-400/50" },
-  discount:   { label: "🏷️ Discount",   style: "bg-red-500/20 text-red-700 border-red-400/50"       },
+  discount:   { label: "🏷️ Discount",   style: "bg-red-500/20 text-red-700 border-red-400/50" },
 };
 
 const emptyProduct: Partial<Product> = {
@@ -44,7 +51,48 @@ type DbProduct = {
   created_at: string; updated_at: string;
 };
 
-/* ── Animated stat card ─────────────────────────────────── */
+type Category = { id: string; name: string; image?: string };
+
+/* ── Fetch & merge products ─────────────────────────────── */
+const fetchAndMergeProducts = async (): Promise<Product[]> => {
+  const staticMap = new Map(defaultProducts.map(p => [p.id, p]));
+  const { data: rows, error } = await supabase
+    .from("products").select("*").order("created_at", { ascending: true }) as { data: DbProduct[] | null; error: any };
+
+  if (!error && rows && rows.length > 0) {
+    const dbIds  = new Set(rows.map(r => r.id));
+    const fromDb = rows.map(r => {
+      const s = staticMap.get(r.id);
+      return {
+        id: r.id, name: r.name ?? s?.name ?? "Unknown",
+        category: r.category ?? s?.category ?? "other",
+        price: r.price ?? s?.price ?? 0, unit: r.unit ?? s?.unit ?? "piece",
+        description: r.description ?? s?.description ?? "",
+        image: s ? getImageUrl(s.image) : (r.image ?? ""),
+        badge: (r.badge ?? s?.badge) as any, discount: r.discount ?? s?.discount,
+        inStock: r.in_stock, stock: r.stock ?? 0,
+        rating: r.rating ?? s?.rating ?? 4.0,
+        reviewCount: r.review_count ?? s?.reviewCount ?? 0,
+      } as Product;
+    });
+    const extra = defaultProducts.filter(p => !dbIds.has(p.id))
+      .map(p => ({ ...p, image: getImageUrl(p.image), stock: p.stock ?? 0 }));
+    return [...fromDb, ...extra];
+  }
+
+  const seed = defaultProducts.map(p => ({
+    id: p.id, name: p.name, category: p.category, price: p.price,
+    unit: p.unit, description: p.description, image: getImageUrl(p.image),
+    badge: p.badge || null, discount: p.discount || null,
+    in_stock: p.inStock, stock: p.stock || 50,
+    rating: p.rating || 4.0, review_count: p.reviewCount || 0,
+  }));
+  await supabase.from("products").insert(seed);
+  return defaultProducts.map(p => ({ ...p, image: getImageUrl(p.image), stock: p.stock ?? 0 }));
+};
+
+/* ── Stat card — no entrance animation replay ───────────── */
+let statsMounted = false;
 const StatCard = ({
   label, value, icon: Icon, color, bg, onClick, active,
 }: {
@@ -55,35 +103,28 @@ const StatCard = ({
     whileHover={{ y: -3, scale: 1.02 }}
     whileTap={{ scale: 0.97 }}
     onClick={onClick}
-    className={`flex-1 flex items-center gap-3 rounded-2xl border p-4 text-left transition-all
+    className={`flex-1 flex items-center gap-2.5 md:gap-3 rounded-2xl border p-3 md:p-4 text-left transition-all min-w-0
       ${active ? `${bg} border-current shadow-lg` : "bg-card border-border/60 hover:border-border shadow-sm hover:shadow-md"}`}
   >
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? "bg-white/25" : bg}`}>
-      <Icon className={`h-5 w-5 ${color}`} />
+    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${active ? "bg-white/25" : bg}`}>
+      <Icon className={`h-4 w-4 ${color}`} />
     </div>
-    <div>
-      <motion.p
-        key={value}
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className={`text-2xl font-extrabold leading-none ${active ? color : "text-foreground"}`}
-      >
+    <div className="min-w-0">
+      <p className={`text-xl md:text-2xl font-extrabold leading-none ${active ? color : "text-foreground"}`}>
         {value}
-      </motion.p>
-      <p className={`text-xs font-semibold mt-0.5 ${active ? color : "text-muted-foreground"}`}>{label}</p>
+      </p>
+      <p className={`text-[10px] font-semibold mt-0.5 leading-tight ${active ? color : "text-muted-foreground"}`}>{label}</p>
     </div>
   </motion.button>
 );
 
 /* ── Product card ────────────────────────────────────────── */
 const ProductCard = ({
-  product, onEdit, onDelete, onToggleStock, isSaving,
+  product, allCategories, onEdit, onDelete, onToggleStock, isSaving,
 }: {
-  product: Product;
-  onEdit: () => void;
-  onDelete: () => void;
-  onToggleStock: () => void;
-  isSaving: boolean;
+  product: Product; allCategories: Category[];
+  onEdit: () => void; onDelete: () => void;
+  onToggleStock: () => void; isSaving: boolean;
 }) => {
   const isOut = !product.inStock || (product.stock ?? 0) === 0;
   const isLow = product.inStock && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= 5;
@@ -91,12 +132,7 @@ const ProductCard = ({
   const badge = product.badge ? BADGE_META[product.badge] : null;
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.92 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.88 }}
-      transition={{ type: "spring", stiffness: 200, damping: 22 }}
+    <div
       className={`group relative rounded-2xl border overflow-hidden transition-all duration-200
         ${isOut
           ? "border-destructive/50 shadow-md shadow-destructive/10"
@@ -104,7 +140,6 @@ const ProductCard = ({
           ? "border-amber-400/50 shadow-md shadow-amber-500/10"
           : "border-border/60 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/8"}`}
     >
-      {/* ── Image area ── */}
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         <motion.img
           src={product.image || PLACEHOLDER}
@@ -114,31 +149,21 @@ const ProductCard = ({
           className={`w-full h-full object-cover ${isOut ? "grayscale-[40%] brightness-90" : ""}`}
           onError={e => { (e.target as HTMLImageElement).src = PLACEHOLDER; }}
         />
-
-        {/* Dark hover overlay with actions */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200" />
 
-        {/* Floating action buttons — appear on hover */}
+        {/* Hover action buttons */}
         <div className="absolute inset-0 flex items-center justify-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <motion.button
-            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-            onClick={onEdit}
-            className="w-10 h-10 rounded-full bg-white text-foreground shadow-xl flex items-center justify-center"
-            aria-label="Edit"
-          >
+          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onEdit}
+            className="w-10 h-10 rounded-full bg-white text-foreground shadow-xl flex items-center justify-center" aria-label="Edit">
             <Pencil className="h-4 w-4" />
           </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-            onClick={onDelete}
-            className="w-10 h-10 rounded-full bg-destructive text-white shadow-xl flex items-center justify-center"
-            aria-label="Delete"
-          >
+          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={onDelete}
+            className="w-10 h-10 rounded-full bg-destructive text-white shadow-xl flex items-center justify-center" aria-label="Delete">
             <Trash2 className="h-4 w-4" />
           </motion.button>
         </div>
 
-        {/* Top-left badges */}
+        {/* Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {isOut && (
             <span className="bg-destructive text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg uppercase tracking-wide">
@@ -157,12 +182,9 @@ const ProductCard = ({
           )}
         </div>
 
-        {/* Top-right: quick stock toggle */}
+        {/* Stock toggle */}
         <div className="absolute top-2 right-2">
-          <div
-            className="bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-md"
-            title={product.inStock ? "Click to mark out of stock" : "Click to mark in stock"}
-          >
+          <div className="bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-md">
             <Switch
               checked={product.inStock && (product.stock ?? 0) > 0}
               disabled={isSaving}
@@ -180,21 +202,13 @@ const ProductCard = ({
         )}
       </div>
 
-      {/* ── Card body ── */}
-      <div className={`p-3.5 ${isOut ? "bg-destructive/5" : isLow ? "bg-amber-500/5" : "bg-card"}`}>
-        {/* Category */}
-        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5">
-          {categories.find(c => c.id === product.category)?.name || product.category}
+      <div className={`p-3 md:p-3.5 ${isOut ? "bg-destructive/5" : isLow ? "bg-amber-500/5" : "bg-card"}`}>
+        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mb-0.5 truncate">
+          {allCategories.find(c => c.id === product.category)?.name || product.category}
         </p>
-
-        {/* Name */}
-        <h3 className="font-bold text-sm leading-snug line-clamp-2 mb-2">{product.name}</h3>
-
-        {/* Price row */}
-        <div className="flex items-baseline gap-1.5 mb-3">
-          <span className="font-extrabold text-primary text-base">
-            PKR {product.price.toLocaleString()}
-          </span>
+        <h3 className="font-bold text-xs md:text-sm leading-snug line-clamp-2 mb-2">{product.name}</h3>
+        <div className="flex items-baseline gap-1 mb-2.5">
+          <span className="font-extrabold text-primary text-sm md:text-base">PKR {product.price.toLocaleString()}</span>
           <span className="text-muted-foreground text-[10px]">/{product.unit}</span>
           {product.discount && (
             <span className="text-muted-foreground text-[10px] line-through ml-auto">
@@ -202,8 +216,6 @@ const ProductCard = ({
             </span>
           )}
         </div>
-
-        {/* Stock health bar */}
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] font-semibold">
             <span className={isOut ? "text-destructive" : isLow ? "text-amber-600" : "text-muted-foreground"}>
@@ -216,14 +228,12 @@ const ProductCard = ({
               initial={{ width: 0 }}
               animate={{ width: `${stockPct}%` }}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className={`h-full rounded-full ${
-                isOut ? "bg-destructive" : isLow ? "bg-amber-500" : "bg-emerald-500"
-              }`}
+              className={`h-full rounded-full ${isOut ? "bg-destructive" : isLow ? "bg-amber-500" : "bg-emerald-500"}`}
             />
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -231,8 +241,8 @@ const ProductCard = ({
    MAIN COMPONENT
 ════════════════════════════════════════════════════════ */
 const ProductManagement = () => {
-  const [productList,   setProductList]   = useState<Product[]>([]);
-  const [loading,       setLoading]       = useState(true);
+  const queryClient = useQueryClient();
+
   const [search,        setSearch]        = useState("");
   const [catFilter,     setCatFilter]     = useState("all");
   const [stockFilter,   setStockFilter]   = useState<"all"|"in"|"out"|"low">("all");
@@ -241,71 +251,188 @@ const ProductManagement = () => {
   const [editing,       setEditing]       = useState<Product | null>(null);
   const [form,          setForm]          = useState<Partial<Product>>(emptyProduct);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [savingId,      setSavingId]      = useState<string | null>(null);
 
-  /* ── Fetch ── */
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const staticMap = new Map(defaultProducts.map(p => [p.id, p]));
-      const { data: rows, error } = await supabase
-        .from("products").select("*").order("created_at", { ascending: true }) as { data: DbProduct[] | null; error: any };
+  const [showNewCat,  setShowNewCat]  = useState(false);
+  const [newCatName,  setNewCatName]  = useState("");
+  const [newCatImage, setNewCatImage] = useState("");
+  const newCatInputRef = useRef<HTMLInputElement>(null);
 
-      if (!error && rows && rows.length > 0) {
-        const dbIds  = new Set(rows.map(r => r.id));
-        const fromDb = rows.map(r => {
-          const s = staticMap.get(r.id);
-          return {
-            id: r.id, name: r.name ?? s?.name ?? "Unknown",
-            category: r.category ?? s?.category ?? "other",
-            price: r.price ?? s?.price ?? 0, unit: r.unit ?? s?.unit ?? "piece",
-            description: r.description ?? s?.description ?? "",
-            image: s ? getImageUrl(s.image) : (r.image ?? ""),
-            badge: (r.badge ?? s?.badge) as any, discount: r.discount ?? s?.discount,
-            inStock: r.in_stock, stock: r.stock ?? 0,
-            rating: r.rating ?? s?.rating ?? 4.0,
-            reviewCount: r.review_count ?? s?.reviewCount ?? 0,
-          } as Product;
-        });
-        const extra = defaultProducts.filter(p => !dbIds.has(p.id))
-          .map(p => ({ ...p, image: getImageUrl(p.image), stock: p.stock ?? 0 }));
-        setProductList([...fromDb, ...extra]);
-      } else {
-        const seed = defaultProducts.map(p => ({
-          id: p.id, name: p.name, category: p.category, price: p.price,
-          unit: p.unit, description: p.description, image: getImageUrl(p.image),
-          badge: p.badge || null, discount: p.discount || null,
-          in_stock: p.inStock, stock: p.stock || 50, rating: p.rating || 4.0, review_count: p.reviewCount || 0,
-        }));
-        await supabase.from("products").insert(seed);
-        setProductList(defaultProducts.map(p => ({ ...p, image: getImageUrl(p.image), stock: p.stock ?? 0 })));
-      }
-    } catch {
-      setProductList(defaultProducts.map(p => ({ ...p, image: getImageUrl(p.image), stock: p.stock ?? 0 })));
-    } finally { setLoading(false); }
-  }, []);
+  const [showCustomUnit, setShowCustomUnit] = useState(false);
 
+  /* ── Mark mounted so stat cards skip entrance on re-show ── */
+  useEffect(() => { statsMounted = true; }, []);
+
+  /* ══ QUERIES ════════════════════════════════════════════ */
+  const { data: productList = [], isLoading: loading } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchAndMergeProducts,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: dbCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async (): Promise<Category[]> => {
+      const { data, error } = await supabase
+        .from("categories").select("id, name, image")
+        .order("created_at", { ascending: true });
+      if (error) return [];
+      return (data || []) as Category[];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const allCategories = useMemo((): Category[] => {
+    const staticIds = new Set(staticCategories.map(c => c.id));
+    const dbOnly = dbCategories.filter(c => !staticIds.has(c.id));
+    return [...(staticCategories as Category[]), ...dbOnly];
+  }, [dbCategories]);
+
+  /* ── Realtime patch ── */
   useEffect(() => {
-    fetchProducts();
-    const ch = supabase.channel("pm2:products")
+    const ch = supabase.channel("pm:products")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, payload => {
         const u = payload.new as DbProduct;
-        setProductList(prev => prev.map(p =>
-          p.id === u.id ? { ...p, inStock: u.in_stock, stock: u.in_stock ? (u.stock ?? 0) : 0 } : p
-        ));
-      }).subscribe();
+        queryClient.setQueryData<Product[]>(["products"], old =>
+          (old || []).map(p =>
+            p.id === u.id ? { ...p, inStock: u.in_stock, stock: u.in_stock ? (u.stock ?? 0) : 0 } : p
+          )
+        );
+        queryClient.setQueryData<any[]>(["admin-products-raw"], old =>
+          (old || []).map(p =>
+            p.id === u.id ? { ...p, in_stock: u.in_stock, stock: u.in_stock ? (u.stock ?? 0) : 0 } : p
+          )
+        );
+      })
+      .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [fetchProducts]);
+  }, [queryClient]);
+
+  /* ══ MUTATIONS ══════════════════════════════════════════ */
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, newIn, newStock }: { id: string; newIn: boolean; newStock: number }) => {
+      const { error } = await supabase.from("products")
+        .update({ in_stock: newIn, stock: newStock, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+      return { id, newIn, newStock };
+    },
+    onMutate: async ({ id, newIn, newStock }) => {
+      await queryClient.cancelQueries({ queryKey: ["products"] });
+      const prev = queryClient.getQueryData<Product[]>(["products"]);
+      queryClient.setQueryData<Product[]>(["products"], old =>
+        (old || []).map(p => p.id === id ? { ...p, inStock: newIn, stock: newStock } : p)
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["products"], ctx.prev);
+      toast.error("Failed to update stock");
+    },
+    onSuccess: ({ newIn, id }) => {
+      const name = queryClient.getQueryData<Product[]>(["products"])?.find(p => p.id === id)?.name ?? "";
+      toast.success(newIn ? `✅ "${name}" back in stock` : `📦 "${name}" marked out of stock`);
+    },
+  });
+
+  const quickToggle = (product: Product) => {
+    const newIn    = !product.inStock;
+    const newStock = newIn ? Math.max(product.stock ?? 1, 1) : 0;
+    toggleMutation.mutate({ id: product.id, newIn, newStock });
+  };
+
+  const addMutation = useMutation({
+    mutationFn: async (data: Partial<Product> & { id: string }) => {
+      const { error } = await supabase.from("products").insert({
+        id: data.id, name: data.name!, category: data.category!, price: data.price!,
+        unit: data.unit || "kg", description: data.description || "",
+        image: data.image || "", badge: data.badge || null, discount: data.discount || null,
+        in_stock: data.inStock ?? true, stock: data.stock || 50,
+        rating: data.rating || 4.0, review_count: data.reviewCount || 0,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData<Product[]>(["products"], old => [data as Product, ...(old || [])]);
+      queryClient.invalidateQueries({ queryKey: ["admin-products-raw"] });
+      toast.success(`"${data.name}" added ✓`);
+      setDialogOpen(false); resetDialogExtras(); setForm(emptyProduct);
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to add product"),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
+      const { error } = await supabase.from("products").update({
+        name: data.name, category: data.category, price: data.price!,
+        unit: data.unit || "kg", description: data.description || "",
+        image: data.image || "", badge: data.badge || null, discount: data.discount || null,
+        stock: data.stock || 0, in_stock: data.inStock ?? true,
+        rating: data.rating || 4.0, review_count: data.reviewCount || 0,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) throw error;
+      return { id, data };
+    },
+    onSuccess: ({ id, data }) => {
+      queryClient.setQueryData<Product[]>(["products"], old =>
+        (old || []).map(p => p.id === id ? { ...p, ...data } as Product : p)
+      );
+      queryClient.invalidateQueries({ queryKey: ["admin-products-raw"] });
+      toast.success(`"${data.name}" updated ✓`);
+      setDialogOpen(false); resetDialogExtras(); setForm(emptyProduct);
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to update product"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: (id) => {
+      const name = queryClient.getQueryData<Product[]>(["products"])?.find(p => p.id === id)?.name;
+      queryClient.setQueryData<Product[]>(["products"], old => (old || []).filter(p => p.id !== id));
+      queryClient.invalidateQueries({ queryKey: ["admin-products-raw"] });
+      setDeleteConfirm(null);
+      toast.success(`"${name}" deleted`);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const addCategoryMutation = useMutation({
+    mutationFn: async ({ id, name, image }: { id: string; name: string; image: string }) => {
+      const { error } = await supabase.from("categories").insert({ id, name, image: image || null });
+      if (error) throw error;
+      return { id, name, image } as Category;
+    },
+    onSuccess: (newCat) => {
+      queryClient.setQueryData<Category[]>(["categories"], old => [...(old || []), newCat]);
+      updateField("category", newCat.id);
+      setNewCatName(""); setNewCatImage(""); setShowNewCat(false);
+      toast.success(`Category "${newCat.name}" created ✓`);
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to save category"),
+  });
+
+  const handleAddCategory = () => {
+    const trimmed = newCatName.trim();
+    if (!trimmed) { toast.error("Category name is required"); return; }
+    const id = slugify(trimmed);
+    if (!id) { toast.error("Invalid category name"); return; }
+    if (allCategories.find(c => c.id === id)) { toast.error(`"${trimmed}" already exists`); return; }
+    addCategoryMutation.mutate({ id, name: trimmed, image: newCatImage.trim() });
+  };
 
   /* ── Derived stats ── */
   const stats = useMemo(() => ({
-    total:  productList.length,
-    inStock: productList.filter(p => p.inStock && (p.stock ?? 0) > 0).length,
+    total:      productList.length,
+    inStock:    productList.filter(p => p.inStock && (p.stock ?? 0) > 0).length,
     outOfStock: productList.filter(p => !p.inStock || (p.stock ?? 0) === 0).length,
-    lowStock: productList.filter(p => p.inStock && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length,
+    lowStock:   productList.filter(p => p.inStock && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length,
   }), [productList]);
 
-  /* ── Filtered + sorted ── */
   const filtered = useMemo(() => {
     return productList
       .filter(p => {
@@ -321,12 +448,10 @@ const ProductManagement = () => {
         );
       })
       .sort((a, b) => {
-        /* Out-of-stock always first */
         const aOut = !a.inStock || (a.stock ?? 0) === 0;
         const bOut = !b.inStock || (b.stock ?? 0) === 0;
         if (aOut && !bOut) return -1;
         if (!aOut && bOut) return  1;
-        /* Then apply sort */
         if (sortBy === "price-asc")  return a.price - b.price;
         if (sortBy === "price-desc") return b.price - a.price;
         if (sortBy === "stock")      return (a.stock ?? 0) - (b.stock ?? 0);
@@ -334,68 +459,46 @@ const ProductManagement = () => {
       });
   }, [productList, search, catFilter, stockFilter, sortBy]);
 
-  /* ── Quick stock toggle ── */
-  const quickToggle = async (product: Product) => {
-    const newIn    = !product.inStock;
-    const newStock = newIn ? Math.max(product.stock ?? 1, 1) : 0;
-    setSavingId(product.id);
-    setProductList(prev => prev.map(p => p.id === product.id ? { ...p, inStock: newIn, stock: newStock } : p));
-    const { error } = await supabase.from("products")
-      .update({ in_stock: newIn, stock: newStock, updated_at: new Date().toISOString() })
-      .eq("id", product.id);
-    setSavingId(null);
-    if (error) { toast.error("Failed"); fetchProducts(); }
-    else toast.success(newIn ? `✅ "${product.name}" back in stock` : `📦 "${product.name}" marked out of stock`);
+  /* ── Dialog helpers ── */
+  const resetDialogExtras = () => {
+    setShowNewCat(false); setNewCatName(""); setNewCatImage(""); setShowCustomUnit(false);
   };
 
-  /* ── Dialog ── */
-  const openAdd  = () => { setEditing(null); setForm({ ...emptyProduct, id: `prod-${Date.now()}` }); setDialogOpen(true); };
-  const openEdit = (p: Product) => { setEditing(p); setForm({ ...p }); setDialogOpen(true); };
-  const updateField = (k: keyof Partial<Product>, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+  const openAdd = () => {
+    resetDialogExtras();
+    setEditing(null);
+    setForm({ ...emptyProduct, id: `prod-${Date.now()}` });
+    setDialogOpen(true);
+  };
 
-  const handleSave = async () => {
-    if (!form.name?.trim()) { toast.error("Name required"); return; }
-    if (!form.category)     { toast.error("Category required"); return; }
+  const openEdit = (p: Product) => {
+    resetDialogExtras();
+    setEditing(p);
+    setForm({ ...p });
+    if (p.unit && !PRESET_UNITS.includes(p.unit)) setShowCustomUnit(true);
+    setDialogOpen(true);
+  };
+
+  const updateField = (k: keyof Partial<Product>, v: any) =>
+    setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleSave = () => {
+    if (!form.name?.trim())             { toast.error("Name required"); return; }
+    if (!form.category)                 { toast.error("Category required"); return; }
     if (!form.price || form.price <= 0) { toast.error("Price must be > 0"); return; }
+    if (showCustomUnit && !form.unit?.trim()) { toast.error("Please enter a unit"); return; }
     if (!form.inStock) form.stock = 0;
-    try {
-      if (editing) {
-        const { error } = await supabase.from("products").update({
-          name: form.name, category: form.category, price: form.price!, unit: form.unit || "kg",
-          description: form.description || "", image: form.image || "",
-          badge: form.badge || null, discount: form.discount || null,
-          stock: form.stock || 0, in_stock: form.inStock ?? true,
-          rating: form.rating || 4.0, review_count: form.reviewCount || 0,
-          updated_at: new Date().toISOString(),
-        }).eq("id", editing.id);
-        if (error) throw error;
-        setProductList(prev => prev.map(p => p.id === editing.id ? { ...p, ...form } as Product : p));
-        toast.success(`"${form.name}" updated ✓`);
-      } else {
-        const id = form.id as string;
-        const { error } = await supabase.from("products").insert({
-          id, name: form.name!, category: form.category!, price: form.price!,
-          unit: form.unit || "kg", description: form.description || "",
-          image: form.image || "", badge: form.badge || null, discount: form.discount || null,
-          in_stock: form.inStock ?? true, stock: form.stock || 50,
-          rating: form.rating || 4.0, review_count: form.reviewCount || 0,
-        });
-        if (error) throw error;
-        setProductList(prev => [{ ...form, id } as Product, ...prev]);
-        toast.success(`"${form.name}" added ✓`);
-      }
-      setDialogOpen(false); setForm(emptyProduct);
-    } catch (err: any) { toast.error(err.message || "Failed to save"); }
+
+    if (editing) {
+      editMutation.mutate({ id: editing.id, data: form });
+    } else {
+      addMutation.mutate({ ...form, id: form.id as string } as Partial<Product> & { id: string });
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    const name = productList.find(p => p.id === id)?.name;
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    setProductList(prev => prev.filter(p => p.id !== id));
-    setDeleteConfirm(null);
-    toast.success(`"${name}" deleted`);
-  };
+  const isSaving = addMutation.isPending || editMutation.isPending;
+
+  /* ─────────────────────────────────────────────────────── */
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -407,19 +510,19 @@ const ProductManagement = () => {
   );
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <div className="space-y-5">
 
       {/* ══ STAT CARDS ══════════════════════════════════════ */}
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        <StatCard label="Total Products"  value={stats.total}      icon={Package}      color="text-primary"      bg="bg-primary/10"      onClick={() => setStockFilter("all")} active={stockFilter === "all"} />
-        <StatCard label="In Stock"        value={stats.inStock}    icon={CheckCircle2} color="text-emerald-600"  bg="bg-emerald-500/10"  onClick={() => setStockFilter("in")}  active={stockFilter === "in"} />
-        <StatCard label="Out of Stock"    value={stats.outOfStock} icon={TrendingDown}  color="text-destructive"  bg="bg-destructive/10"  onClick={() => setStockFilter("out")} active={stockFilter === "out"} />
-        <StatCard label="Low Stock"       value={stats.lowStock}   icon={AlertTriangle} color="text-amber-600"   bg="bg-amber-500/10"    onClick={() => setStockFilter("low")} active={stockFilter === "low"} />
+      <div className="grid grid-cols-2 md:flex gap-2.5 md:gap-3">
+        <StatCard label="Total"      value={stats.total}      icon={Package}       color="text-primary"     bg="bg-primary/10"     onClick={() => setStockFilter("all")} active={stockFilter === "all"} />
+        <StatCard label="In Stock"   value={stats.inStock}    icon={CheckCircle2}  color="text-emerald-600" bg="bg-emerald-500/10" onClick={() => setStockFilter("in")}  active={stockFilter === "in"} />
+        <StatCard label="Out"        value={stats.outOfStock} icon={TrendingDown}  color="text-destructive" bg="bg-destructive/10" onClick={() => setStockFilter("out")} active={stockFilter === "out"} />
+        <StatCard label="Low Stock"  value={stats.lowStock}   icon={AlertTriangle} color="text-amber-600"   bg="bg-amber-500/10"   onClick={() => setStockFilter("low")} active={stockFilter === "low"} />
       </div>
 
       {/* ══ CATEGORY PILLS ══════════════════════════════════ */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {[{ id: "all", name: "All" }, ...categories].map(c => {
+        {[{ id: "all", name: "All" } as Category, ...allCategories].map(c => {
           const count = c.id === "all" ? productList.length : productList.filter(p => p.category === c.id).length;
           const active = catFilter === c.id;
           return (
@@ -427,11 +530,15 @@ const ProductManagement = () => {
               key={c.id}
               whileHover={{ y: -2 }} whileTap={{ scale: 0.95 }}
               onClick={() => setCatFilter(c.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all flex-shrink-0
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all flex-shrink-0
                 ${active
                   ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/25"
                   : "bg-card text-muted-foreground border-border/60 hover:border-primary/40 hover:text-primary"}`}
             >
+              {c.image && (
+                <img src={c.image} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                  onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              )}
               {c.name}
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${active ? "bg-white/25" : "bg-muted"}`}>
                 {count}
@@ -442,9 +549,8 @@ const ProductManagement = () => {
       </div>
 
       {/* ══ CONTROLS BAR ════════════════════════════════════ */}
-      <div className="flex gap-3 items-center flex-wrap">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex gap-2 items-center flex-wrap">
+        <div className="relative flex-1 min-w-[160px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search products…"
@@ -463,9 +569,8 @@ const ProductManagement = () => {
           </AnimatePresence>
         </div>
 
-        {/* Sort */}
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-          <SelectTrigger className="w-40 h-10 rounded-xl border-border/60 gap-1.5">
+          <SelectTrigger className="w-36 md:w-40 h-10 rounded-xl border-border/60 gap-1.5 flex-shrink-0">
             <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -477,45 +582,51 @@ const ProductManagement = () => {
           </SelectContent>
         </Select>
 
-        <p className="text-xs text-muted-foreground font-medium hidden sm:block">
-          <span className="font-extrabold text-foreground">{filtered.length}</span> of {productList.length}
-        </p>
-
         <div className="flex gap-2 ml-auto">
-          <Button variant="outline" size="sm" onClick={fetchProducts} className="rounded-xl h-10 gap-1.5">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          <Button variant="outline" size="sm"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["products"] });
+              queryClient.invalidateQueries({ queryKey: ["categories"] });
+            }}
+            className="rounded-xl h-10 gap-1.5">
+            <RefreshCw className="h-4 w-4" />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button size="sm" onClick={openAdd} className="rounded-xl h-10 gap-1.5 shadow-md shadow-primary/20">
-            <Plus className="h-4 w-4" /> Add Product
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Product</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </div>
       </div>
 
-      {/* Active filter chip */}
-      <AnimatePresence>
-        {stockFilter !== "all" && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-            <button
-              onClick={() => setStockFilter("all")}
-              className={`inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full border
-                ${stockFilter === "out" ? "bg-destructive/10 text-destructive border-destructive/30"
-                  : stockFilter === "low" ? "bg-amber-500/10 text-amber-700 border-amber-400/30"
-                  : "bg-emerald-500/10 text-emerald-700 border-emerald-400/30"}`}
-            >
-              {stockFilter === "out" ? "🔴 Showing: Out of stock" : stockFilter === "low" ? "🟡 Showing: Low stock" : "🟢 Showing: In stock"}
-              <X className="h-3 w-3" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Count + active filter chip */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <p className="text-xs text-muted-foreground font-medium">
+          <span className="font-extrabold text-foreground">{filtered.length}</span> of {productList.length} products
+        </p>
+        <AnimatePresence>
+          {stockFilter !== "all" && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+              <button
+                onClick={() => setStockFilter("all")}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border
+                  ${stockFilter === "out" ? "bg-destructive/10 text-destructive border-destructive/30"
+                    : stockFilter === "low" ? "bg-amber-500/10 text-amber-700 border-amber-400/30"
+                    : "bg-emerald-500/10 text-emerald-700 border-emerald-400/30"}`}
+              >
+                {stockFilter === "out" ? "🔴 Out of stock" : stockFilter === "low" ? "🟡 Low stock" : "🟢 In stock"}
+                <X className="h-3 w-3" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* ══ PRODUCT GRID ════════════════════════════════════ */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-          <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}>
-            <Package className="h-16 w-16 text-muted-foreground/20 mx-auto" />
-          </motion.div>
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+          <Package className="h-14 w-14 text-muted-foreground/20 mx-auto" />
           <p className="font-display font-bold text-xl">No products found</p>
           <p className="text-muted-foreground text-sm">Try adjusting your search or filter.</p>
           {(search || catFilter !== "all" || stockFilter !== "all") && (
@@ -525,77 +636,238 @@ const ProductManagement = () => {
           )}
         </div>
       ) : (
-        <motion.div
-          layout
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
-        >
-          <AnimatePresence initial={false}>
-            {filtered.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onEdit={() => openEdit(product)}
-                onDelete={() => setDeleteConfirm(product.id)}
-                onToggleStock={() => quickToggle(product)}
-                isSaving={savingId === product.id}
-              />
-            ))}
-          </AnimatePresence>
-        </motion.div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
+          {filtered.map(product => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              allCategories={allCategories}
+              onEdit={() => openEdit(product)}
+              onDelete={() => setDeleteConfirm(product.id)}
+              onToggleStock={() => quickToggle(product)}
+              isSaving={toggleMutation.isPending && toggleMutation.variables?.id === product.id}
+            />
+          ))}
+        </div>
       )}
 
       {/* ══ ADD / EDIT DIALOG ══════════════════════════════ */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={open => {
+        setDialogOpen(open);
+        if (!open) { resetDialogExtras(); setForm(emptyProduct); }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle className="font-display font-extrabold text-xl flex items-center gap-2">
-              {editing ? <><Pencil className="h-5 w-5 text-primary" /> Edit Product</> : <><Plus className="h-5 w-5 text-primary" /> Add Product</>}
+              {editing
+                ? <><Pencil className="h-5 w-5 text-primary" /> Edit Product</>
+                : <><Plus className="h-5 w-5 text-primary" /> Add Product</>}
             </DialogTitle>
             <DialogDescription className="text-sm">
-              {editing ? `Editing "${editing.name}"` : "Fill in the details to add a new product to your catalog."}
+              {editing ? `Editing "${editing.name}"` : "Fill in the details to add a new product."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Image preview */}
+
+            {/* Product image preview */}
             {form.image && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl border border-border/40">
                 <img src={form.image} alt="Preview" className="w-16 h-16 rounded-xl object-cover shadow-md"
                   onError={e => { e.currentTarget.style.display = "none"; }} />
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-bold text-muted-foreground">Image Preview</p>
                   <p className="text-[10px] text-muted-foreground/60 mt-0.5 break-all line-clamp-2">{form.image}</p>
                 </div>
               </motion.div>
             )}
 
+            {/* Name */}
             <div>
               <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Product Name *</Label>
               <Input value={form.name || ""} onChange={e => updateField("name", e.target.value)}
                 placeholder="e.g. Fresh Red Apples" className="h-10 rounded-xl border-border/60" />
             </div>
 
+            {/* Category + Unit */}
             <div className="grid grid-cols-2 gap-3">
+
+              {/* CATEGORY */}
               <div>
                 <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Category *</Label>
-                <Select value={form.category || ""} onValueChange={v => updateField("category", v)}>
-                  <SelectTrigger className="h-10 rounded-xl border-border/60"><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Unit</Label>
-                <Select value={form.unit || "kg"} onValueChange={v => updateField("unit", v)}>
-                  <SelectTrigger className="h-10 rounded-xl border-border/60"><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.category || ""}
+                  onValueChange={v => {
+                    if (v === "__new__") {
+                      setShowNewCat(true);
+                      setTimeout(() => newCatInputRef.current?.focus(), 50);
+                    } else {
+                      updateField("category", v);
+                      setShowNewCat(false);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl border-border/60">
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {["kg","g","liter","ml","piece","pack","bottle","dozen","box","bundle","roll","tube","can"].map(u =>
-                      <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    {allCategories.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          {c.image
+                            ? <img src={c.image} alt="" className="w-4 h-4 rounded object-cover flex-shrink-0" />
+                            : <span className="w-4 h-4 rounded bg-muted flex-shrink-0" />}
+                          {c.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                    <div className="mx-2 my-1 h-px bg-border" />
+                    <SelectItem value="__new__" className="text-primary font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <FolderPlus className="h-3.5 w-3.5" />
+                        Add new category…
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* Inline new-category form */}
+                <AnimatePresence>
+                  {showNewCat && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginTop: 8 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2.5">
+                        <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">New Category</p>
+
+                        <Input
+                          ref={newCatInputRef}
+                          value={newCatName}
+                          onChange={e => setNewCatName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") { e.preventDefault(); handleAddCategory(); }
+                            if (e.key === "Escape") setShowNewCat(false);
+                          }}
+                          placeholder="e.g. Organic Produce"
+                          className="h-8 rounded-lg text-sm border-primary/30 focus-visible:ring-primary/40"
+                        />
+
+                        {newCatName.trim() && (
+                          <p className="text-[10px] text-muted-foreground">
+                            ID: <span className="font-mono font-bold text-foreground">{slugify(newCatName.trim())}</span>
+                          </p>
+                        )}
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">
+                            Cover Image URL
+                          </Label>
+                          <Input
+                            value={newCatImage}
+                            onChange={e => setNewCatImage(e.target.value)}
+                            placeholder="https://images.unsplash.com/…"
+                            className="h-8 rounded-lg text-sm border-primary/30 focus-visible:ring-primary/40"
+                          />
+                        </div>
+
+                        <AnimatePresence>
+                          {newCatImage.trim() && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              className="flex items-center gap-2.5 p-2 bg-background/60 rounded-lg border border-border/40"
+                            >
+                              <img
+                                src={newCatImage}
+                                alt="Category cover preview"
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 shadow-sm"
+                                onError={e => { (e.target as HTMLImageElement).src = PLACEHOLDER; }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-bold text-muted-foreground">Cover preview</p>
+                                {newCatName.trim() && (
+                                  <p className="text-[10px] text-foreground font-semibold mt-0.5 truncate">{newCatName}</p>
+                                )}
+                              </div>
+                              <button type="button" onClick={() => setNewCatImage("")}
+                                className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground flex-shrink-0">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {!newCatImage.trim() && (
+                          <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <ImageIcon className="h-3 w-3 flex-shrink-0" />
+                            Optional — category will appear without a cover if left blank
+                          </p>
+                        )}
+
+                        <div className="flex gap-2 pt-0.5">
+                          <Button size="sm" className="h-7 text-xs rounded-lg flex-1 gap-1"
+                            onClick={handleAddCategory}
+                            disabled={addCategoryMutation.isPending || !newCatName.trim()}>
+                            {addCategoryMutation.isPending
+                              ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
+                              : <><Plus className="h-3 w-3" /> Create</>}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs rounded-lg px-2"
+                            onClick={() => { setShowNewCat(false); setNewCatName(""); setNewCatImage(""); }}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* UNIT */}
+              <div>
+                <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Unit</Label>
+                {!showCustomUnit ? (
+                  <Select
+                    value={form.unit || "kg"}
+                    onValueChange={v => {
+                      if (v === "__custom__") { setShowCustomUnit(true); updateField("unit", ""); }
+                      else updateField("unit", v);
+                    }}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-border/60"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PRESET_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      <div className="mx-2 my-1 h-px bg-border" />
+                      <SelectItem value="__custom__" className="text-primary font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          <Pencil className="h-3.5 w-3.5" /> Custom…
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="flex gap-1.5">
+                    <Input autoFocus value={form.unit || ""} onChange={e => updateField("unit", e.target.value)}
+                      placeholder="e.g. tray, sachet…"
+                      className="h-10 rounded-xl border-primary/40 focus-visible:ring-primary/40 flex-1" />
+                    <Button type="button" variant="ghost" size="icon" className="h-10 w-10 rounded-xl flex-shrink-0"
+                      title="Back to presets" onClick={() => { setShowCustomUnit(false); updateField("unit", "kg"); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                )}
+                {showCustomUnit && (
+                  <p className="text-[10px] text-muted-foreground mt-1">Type any unit. Click ✕ for presets.</p>
+                )}
               </div>
             </div>
 
+            {/* Price + Discount */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Price (PKR) *</Label>
@@ -611,6 +883,7 @@ const ProductManagement = () => {
               </div>
             </div>
 
+            {/* Stock + Toggle */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Stock Qty</Label>
@@ -626,18 +899,21 @@ const ProductManagement = () => {
               </div>
             </div>
 
+            {/* Image URL */}
             <div>
               <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Image URL</Label>
               <Input value={form.image || ""} onChange={e => updateField("image", e.target.value)}
                 placeholder="https://images.unsplash.com/…" className="h-10 rounded-xl border-border/60" />
             </div>
 
+            {/* Description */}
             <div>
               <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Description</Label>
               <Input value={form.description || ""} onChange={e => updateField("description", e.target.value)}
                 placeholder="Short product description" className="h-10 rounded-xl border-border/60" />
             </div>
 
+            {/* Badge */}
             <div>
               <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Badge</Label>
               <Select value={form.badge || "none"} onValueChange={v => updateField("badge", v === "none" ? undefined : v as any)}>
@@ -653,9 +929,10 @@ const ProductManagement = () => {
           </div>
 
           <DialogFooter className="gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setDialogOpen(false); setForm(emptyProduct); }} className="rounded-xl">Cancel</Button>
-            <Button onClick={handleSave} className="rounded-xl gap-1.5 shadow-md shadow-primary/20">
-              <Zap className="h-4 w-4" />
+            <Button variant="outline" onClick={() => { setDialogOpen(false); resetDialogExtras(); setForm(emptyProduct); }}
+              className="rounded-xl">Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving} className="rounded-xl gap-1.5 shadow-md shadow-primary/20">
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
               {editing ? "Save Changes" : "Add Product"}
             </Button>
           </DialogFooter>
@@ -670,19 +947,25 @@ const ProductManagement = () => {
               <Trash2 className="h-5 w-5 text-destructive" /> Delete Product?
             </DialogTitle>
             <DialogDescription>
-              <span className="font-bold text-foreground">"{productList.find(p => p.id === deleteConfirm)?.name}"</span>{" "}
-              will be permanently removed from your catalog. This cannot be undone.
+              <span className="font-bold text-foreground">
+                "{productList.find(p => p.id === deleteConfirm)?.name}"
+              </span>{" "}
+              will be permanently removed. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteConfirm(null)} className="rounded-xl">Keep it</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)} className="rounded-xl gap-1.5">
-              <Trash2 className="h-4 w-4" /> Delete
+            <Button variant="destructive" disabled={deleteMutation.isPending}
+              onClick={() => deleteConfirm && deleteMutation.mutate(deleteConfirm)}
+              className="rounded-xl gap-1.5">
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </motion.div>
+
+    </div>
   );
 };
 

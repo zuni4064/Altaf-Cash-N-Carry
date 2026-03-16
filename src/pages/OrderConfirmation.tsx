@@ -26,13 +26,14 @@ interface OrderData {
   id: string;
   date: string;
   status: string;
-  total: number;
+  subtotal: number;       // products-only total
+  deliveryCharge: number; // delivery fee
+  total: number;          // grand total = subtotal + deliveryCharge
   customerName: string;
   phone: string;
   address: string;
   items: OrderItem[];
   paymentMethod?: string;
-  deliveryCharge?: number;
 }
 
 /* ── Confetti ───────────────────────────────────────────────── */
@@ -82,12 +83,12 @@ const normalizeStatus = (status: string): string => {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  Pending:           "bg-amber-500/15 text-amber-600 border-amber-500/30",
-  Confirmed:         "bg-blue-500/15 text-blue-600 border-blue-500/30",
-  Preparing:         "bg-orange-500/15 text-orange-600 border-orange-500/30",
-  "Out for Delivery":"bg-primary/15 text-primary border-primary/30",
-  Delivered:         "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
-  Cancelled:         "bg-destructive/15 text-destructive border-destructive/30",
+  Pending:            "bg-amber-500/15 text-amber-600 border-amber-500/30",
+  Confirmed:          "bg-blue-500/15 text-blue-600 border-blue-500/30",
+  Preparing:          "bg-orange-500/15 text-orange-600 border-orange-500/30",
+  "Out for Delivery": "bg-primary/15 text-primary border-primary/30",
+  Delivered:          "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  Cancelled:          "bg-destructive/15 text-destructive border-destructive/30",
 };
 
 /* ── Fetch order from Supabase ──────────────────────────────── */
@@ -101,26 +102,34 @@ const fetchOrderFromDB = async (orderId: string): Promise<OrderData | null> => {
 
     if (error || !data) return null;
 
-    /* Supabase stores items as JSON — parse if it's a string */
     const rawItems = typeof data.items === "string"
       ? JSON.parse(data.items)
       : data.items || [];
 
+    // FIX: read delivery_charge and subtotal as distinct fields.
+    // Fall back gracefully for old orders that predate this fix.
+    const deliveryCharge = data.delivery_charge ?? 0;
+    const total          = data.total           ?? 0;
+    // If subtotal was stored use it; otherwise derive it from total - delivery_charge.
+    const subtotal       = data.subtotal        ?? (total - deliveryCharge);
+
     return {
-      id:             data.id,
-      date:           data.created_at
+      id:            data.id,
+      date:          data.created_at
         ? new Date(data.created_at).toLocaleDateString("en-PK", {
-            day: "numeric", month: "long", year: "numeric",
+            weekday: "long", day: "numeric", month: "long", year: "numeric",
+            hour: "2-digit", minute: "2-digit",
           })
         : "",
-      status:         data.status || "pending",
-      total:          data.total ?? 0,
-      customerName:   data.customer_name  || data.name        || "",
-      phone:          data.phone          || "",
-      address:        data.address        || "",
-      paymentMethod:  data.payment_method || "COD",
-      deliveryCharge: data.delivery_charge ?? 0,
-      items:          rawItems,
+      status:        data.status        || "pending",
+      subtotal,
+      deliveryCharge,
+      total,
+      customerName:  data.customer_name  || data.name || "",
+      phone:         data.phone          || "",
+      address:       data.address        || "",
+      paymentMethod: data.payment_method || "COD",
+      items:         rawItems,
     };
   } catch {
     return null;
@@ -131,40 +140,53 @@ const fetchOrderFromDB = async (orderId: string): Promise<OrderData | null> => {
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════ */
 const OrderConfirmation = () => {
-  const { orderId }        = useParams();
-  const { orders, loadOrders } = useCart() as any; /* loadOrders may exist depending on your CartContext */
+  const { orderId }            = useParams();
+  const { orders, loadOrders } = useCart() as any;
 
-  /* ── Try local state first, then fetch from DB ── */
   const localOrder = orders?.find((o: any) => o.id === orderId);
 
-  const [order,        setOrder]        = useState<OrderData | null>(localOrder ?? null);
-  const [loading,      setLoading]      = useState(!localOrder);
+  const [order,        setOrder]        = useState<OrderData | null>(null);
+  const [loading,      setLoading]      = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    if (localOrder) {
-      setOrder(localOrder);
-      setLoading(false);
-      return;
-    }
-
     if (!orderId) { setLoading(false); return; }
 
-    /* Not in local cache → fetch directly from Supabase */
+    // Always fetch fresh from DB so we get the correct subtotal / delivery_charge
     (async () => {
       setLoading(true);
       const fetched = await fetchOrderFromDB(orderId);
-      setOrder(fetched);
+
+      if (fetched) {
+        setOrder(fetched);
+      } else if (localOrder) {
+        // Fallback: map local Order shape → OrderData shape
+        const dc = localOrder.deliveryCharge ?? 0;
+        const tot = localOrder.total ?? 0;
+        setOrder({
+          id:            localOrder.id,
+          date:          localOrder.date ?? "",
+          status:        localOrder.status ?? "Pending",
+          subtotal:      localOrder.subtotal ?? (tot - dc),
+          deliveryCharge: dc,
+          total:         tot,
+          customerName:  localOrder.customerName  ?? "",
+          phone:         localOrder.phone         ?? "",
+          address:       localOrder.address       ?? "",
+          paymentMethod: localOrder.paymentMethod ?? "COD",
+          items:         localOrder.items         ?? [],
+        });
+      }
+
       setLoading(false);
 
-      /* Also try to refresh the cart orders list so MyOrders gets populated */
       if (typeof loadOrders === "function") {
         try { await loadOrders(); } catch { /* silent */ }
       }
     })();
-  }, [orderId, localOrder]);
+  }, [orderId]);
 
-  /* Confetti on order found */
+  // Confetti on first load
   useEffect(() => {
     if (!order) return;
     setShowConfetti(true);
@@ -177,13 +199,10 @@ const OrderConfirmation = () => {
     toast.success("Order link copied!");
   };
 
-  /* ── Loading state ── */
+  /* ── Loading ── */
   if (loading) return (
     <div className="container py-28 flex flex-col items-center gap-5">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-      >
+      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}>
         <Loader2 className="h-12 w-12 text-primary" />
       </motion.div>
       <p className="text-muted-foreground font-medium">Loading your order…</p>
@@ -203,9 +222,8 @@ const OrderConfirmation = () => {
       ? Math.round(item.product.price * (1 - item.product.discount / 100))
       : item.product.price;
 
-  const currentStatus = normalizeStatus(order.status);
-  const deliveryCharge = order.deliveryCharge ?? 0;
-  const isFreeDelivery = deliveryCharge === 0 && order.total >= 2000;
+  const currentStatus  = normalizeStatus(order.status);
+  const isFreeDelivery = order.deliveryCharge === 0 && order.subtotal >= 2000;
 
   return (
     <>
@@ -351,16 +369,20 @@ const OrderConfirmation = () => {
               </div>
             )}
 
-            {/* Totals */}
+            {/* Totals — FIX: use order.subtotal and order.deliveryCharge directly */}
             <div className="mt-4 pt-4 border-t border-dashed border-border space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
-                <span>PKR {Math.round(order.total - deliveryCharge).toLocaleString()}</span>
+                <span>PKR {Math.round(order.subtotal).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Delivery</span>
                 <span className={isFreeDelivery ? "text-emerald-600 font-bold" : "font-medium"}>
-                  {isFreeDelivery ? "FREE ✨" : deliveryCharge > 0 ? `PKR ${deliveryCharge}` : "PKR 0"}
+                  {isFreeDelivery
+                    ? "FREE ✨"
+                    : order.deliveryCharge > 0
+                      ? `PKR ${order.deliveryCharge.toLocaleString()}`
+                      : "PKR 0"}
                 </span>
               </div>
               <div className="flex justify-between font-extrabold text-base pt-2 border-t border-border">
