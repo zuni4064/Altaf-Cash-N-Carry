@@ -70,6 +70,7 @@ function mapDbProduct(row: any, variants?: ProductVariant[]): Product {
     id:            row.id,
     name:          row.name          ?? "Unknown Product",
     category:      row.category      ?? "other",
+    subCategory:   row.sub_category  ?? undefined,
     price:         row.price         ?? 0,
     unit:          row.unit          ?? "piece",
     description:   row.description   ?? "",

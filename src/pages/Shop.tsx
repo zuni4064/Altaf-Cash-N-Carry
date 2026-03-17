@@ -71,32 +71,64 @@ const Shop = () => {
 
   const { products, categories } = useCart();
   const activeCategory = searchParams.get("category") || "all";
+  const activeSubCategory = searchParams.get("subCategory") || "all";
 
   const filtered = useMemo(() => {
     let list = activeCategory === "all"
       ? products
       : products.filter(p => p.category === activeCategory);
+    
+    // Filter by subcategory if one is selected (case-insensitive)
+    if (activeSubCategory !== "all") {
+      list = list.filter(p => p.subCategory?.trim().toLowerCase() === activeSubCategory.trim().toLowerCase());
+    }
+
     if (search)
       list = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
     if (sortBy === "low")  list = [...list].sort((a, b) => a.price - b.price);
     if (sortBy === "high") list = [...list].sort((a, b) => b.price - a.price);
     if (sortBy === "name") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [activeCategory, search, sortBy, products]);
+  }, [activeCategory, activeSubCategory, search, sortBy, products]);
+
+  // Derived subcategories for the currently selected main category
+  const availableSubCategories = useMemo(() => {
+    if (activeCategory === "all") return [];
+    const prodsInCategory = products.filter(p => p.category === activeCategory);
+    // Normalize to title case to avoid duplicate pills for same sub-category with different capitalization
+    const subsMap = new Map<string, string>(); // key = lowercase, value = display string
+    prodsInCategory.forEach(p => {
+      if (p.subCategory && p.subCategory.trim() !== "") {
+        const key = p.subCategory.trim().toLowerCase();
+        if (!subsMap.has(key)) subsMap.set(key, p.subCategory.trim());
+      }
+    });
+    return Array.from(subsMap.values()).sort();
+  }, [activeCategory, products]);
 
   const setCategory = (id: string) => {
     if (id === "all") searchParams.delete("category");
     else searchParams.set("category", id);
+    // When changing main category, reset the subcategory
+    searchParams.delete("subCategory");
+    setSearchParams(searchParams);
+  };
+
+  const setSubCategory = (sub: string) => {
+    if (sub === "all") searchParams.delete("subCategory");
+    else searchParams.set("subCategory", sub);
     setSearchParams(searchParams);
   };
 
   const clearAll = () => {
     setSearch("");
     setSortBy("default");
-    setCategory("all");
+    searchParams.delete("category");
+    searchParams.delete("subCategory");
+    setSearchParams(searchParams);
   };
 
-  const hasFilters = search || sortBy !== "default" || activeCategory !== "all";
+  const hasFilters = search || sortBy !== "default" || activeCategory !== "all" || activeSubCategory !== "all";
 
   /* Quick-stat counts */
   const inStockCount  = filtered.filter(p => p.inStock).length;
@@ -322,6 +354,44 @@ const Shop = () => {
           })}
         </motion.div>
 
+        {/* ── SUBCATEGORY PILLS ────────────────────────────────── */}
+        <AnimatePresence>
+          {availableSubCategories.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, scale: 0.95 }}
+              animate={{ opacity: 1, height: "auto", scale: 1 }}
+              exit={{ opacity: 0, height: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-wrap gap-2 mb-6 pl-2 border-l-2 border-primary/20"
+            >
+              {["all", ...availableSubCategories].map((sub, i) => {
+                const active = activeSubCategory === sub;
+                const label = sub === "all" ? "All " + (categories.find(c => c.id === activeCategory)?.name || "") : sub;
+                return (
+                  <motion.div
+                    key={sub}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.03 * i, type: "spring", stiffness: 250 }}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <button
+                      onClick={() => setSubCategory(sub)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors duration-200
+                        ${active
+                          ? "bg-primary/20 text-primary border border-primary/30"
+                          : "bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary"}`}
+                    >
+                      {label}
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── RESULTS BAR ─────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-5">
           <motion.p
@@ -381,6 +451,7 @@ const Shop = () => {
               {activeCategory !== "all" && (
                 <Badge variant="secondary" className="gap-1.5 pr-1.5 pl-3 py-1 rounded-full">
                   {categories.find(c => c.id === activeCategory)?.name}
+                  {activeSubCategory !== "all" ? ` : ${activeSubCategory}` : ""}
                   <button aria-label="Clear category filter" onClick={() => setCategory("all")} className="hover:text-destructive ml-0.5">
                     <X className="h-3 w-3" />
                   </button>

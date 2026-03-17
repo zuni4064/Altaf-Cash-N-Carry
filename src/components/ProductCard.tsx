@@ -85,7 +85,10 @@ const ProductCard = ({ product }: { product: Product }) => {
   const finalPrice = displayPrice;
 
   const badgeCfg = product.badge ? BADGE_CONFIG[product.badge] : null;
-  const inStock  = product.inStock && (product.stock === undefined || product.stock > 0);
+  // For variant products, check if any variant has stock > 0 instead of product-level stock
+  const inStock  = hasVariants
+    ? product.variants!.some(v => v.stock > 0)
+    : (product.inStock && (product.stock === undefined || product.stock > 0));
 
   return (
     <motion.div
@@ -285,12 +288,21 @@ const ProductCard = ({ product }: { product: Product }) => {
 
         {/* Stock pill */}
         <div className="mt-2">
-          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full
-            ${(product.stock ?? 0) > 0
-              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-              : "bg-destructive/10 text-destructive border border-destructive/20"}`}>
-            {(product.stock ?? 0) > 0 ? `${product.stock} in stock` : "Out of stock"}
-          </span>
+          {hasVariants ? (
+            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full
+              ${inStock
+                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                : "bg-destructive/10 text-destructive border border-destructive/20"}`}>
+              {inStock ? `${product.variants!.reduce((s, v) => s + v.stock, 0)} in stock` : "Out of stock"}
+            </span>
+          ) : (
+            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full
+              ${(product.stock ?? 0) > 0
+                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                : "bg-destructive/10 text-destructive border border-destructive/20"}`}>
+              {(product.stock ?? 0) > 0 ? `${product.stock} in stock` : "Out of stock"}
+            </span>
+          )}
         </div>
       </div>
     </motion.div>

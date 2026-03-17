@@ -39,13 +39,13 @@ const BADGE_META: Record<string, { label: string; style: string }> = {
 };
 
 const emptyProduct: Partial<Product> = {
-  name: "", category: "", price: 0, unit: "kg",
+  name: "", category: "", subCategory: "", price: 0, unit: "kg",
   description: "", image: "", inStock: true, stock: 50,
   rating: 4.0, reviewCount: 0,
 };
 
 type DbProduct = {
-  id: string; name?: string; category?: string; price?: number; unit?: string;
+  id: string; name?: string; category?: string; sub_category?: string; price?: number; unit?: string;
   description?: string; image?: string; badge?: string | null; discount?: number | null;
   in_stock: boolean; stock?: number; rating?: number; review_count?: number;
   created_at: string; updated_at: string;
@@ -78,6 +78,7 @@ const fetchAndMergeProducts = async (): Promise<Product[]> => {
       return {
         id: r.id, name: r.name ?? s?.name ?? "Unknown",
         category: r.category ?? s?.category ?? "other",
+        subCategory: r.sub_category ?? s?.subCategory ?? "",
         price: r.price ?? s?.price ?? 0, unit: r.unit ?? s?.unit ?? "piece",
         description: r.description ?? s?.description ?? "",
         image: s ? getImageUrl(s.image) : (r.image ?? ""),
@@ -94,7 +95,7 @@ const fetchAndMergeProducts = async (): Promise<Product[]> => {
   }
 
   const seed = defaultProducts.map(p => ({
-    id: p.id, name: p.name, category: p.category, price: p.price,
+    id: p.id, name: p.name, category: p.category, sub_category: p.subCategory, price: p.price,
     unit: p.unit, description: p.description, image: getImageUrl(p.image),
     badge: p.badge || null, discount: p.discount || null,
     in_stock: p.inStock, stock: p.stock || 50,
@@ -142,9 +143,11 @@ const ProductCard = ({
   const hasVariants = (product.variants?.length ?? 0) > 0;
   
   // A product is entirely out of stock ONLY if it has no stock whatsoever.
+  // For non-variant products: use the inStock flag (admin-controlled) as primary gate.
+  // For variant products: check if any variant has stock > 0.
   const isOut = hasVariants
     ? !product.variants!.some(v => v.stock > 0)
-    : (!product.inStock || (product.stock ?? 0) === 0);
+    : !product.inStock;
   
   // A product has a PARTIAL stockout if it IS NOT completely out, but AT LEAST ONE variant is out
   const isPartialOut = hasVariants && !isOut && product.variants!.some(v => v.stock === 0);
@@ -395,7 +398,7 @@ const ProductManagement = () => {
   const addMutation = useMutation({
     mutationFn: async (data: Partial<Product> & { id: string }) => {
       const { error } = await supabase.from("products").insert({
-        id: data.id, name: data.name!, category: data.category!, 
+        id: data.id, name: data.name!, category: data.category!, sub_category: data.subCategory || null,
         price: hasVariants ? 0 : data.price!,
         unit: data.unit || "kg", description: data.description || "",
         image: data.image || "", badge: data.badge || null, 
@@ -433,7 +436,7 @@ const ProductManagement = () => {
   const editMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
       const { error } = await supabase.from("products").update({
-        name: data.name, category: data.category, 
+        name: data.name, category: data.category, sub_category: data.subCategory || null,
         price: hasVariants ? 0 : data.price!,
         unit: data.unit || "kg", description: data.description || "",
         image: data.image || "", badge: data.badge || null, 
@@ -522,7 +525,9 @@ const ProductManagement = () => {
     let inStock = 0, outOfStock = 0, lowStock = 0;
     productList.forEach(p => {
       const pHasVariants = (p.variants?.length ?? 0) > 0;
-      const isOut = pHasVariants ? !p.variants!.some(v => v.stock > 0) : (!p.inStock || (p.stock ?? 0) === 0);
+      const isOut = pHasVariants
+        ? !p.variants!.some(v => v.stock > 0)
+        : !p.inStock;  // for non-variant, trust admin's inStock toggle
       const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
       const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
       const isLow = !isOut && totalStock > 0 && totalStock <= 5;
@@ -544,9 +549,9 @@ const ProductManagement = () => {
       .filter(p => {
         const pHasVariants = (p.variants?.length ?? 0) > 0;
         const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
-        const isOut = pHasVariants 
+        const isOut = pHasVariants
           ? !p.variants!.some(v => v.stock > 0)
-          : (!p.inStock || (p.stock ?? 0) === 0);
+          : !p.inStock;  // for non-variant, trust admin's inStock toggle
         const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
         const isLow = !isOut && totalStock > 0 && totalStock <= 5;
         const isPartialLow = pHasVariants && !isLow && !isOut && !isPartialOut && p.variants!.some(v => v.stock > 0 && v.stock <= 5);
@@ -568,8 +573,8 @@ const ProductManagement = () => {
         const bHasV = (b.variants?.length ?? 0) > 0;
         const aStock = aHasV ? a.variants!.reduce((acc, v) => acc + v.stock, 0) : (a.stock ?? 0);
         const bStock = bHasV ? b.variants!.reduce((acc, v) => acc + v.stock, 0) : (b.stock ?? 0);
-        const aOut = aHasV ? !a.variants!.some(v => v.stock > 0) : (!a.inStock || aStock === 0);
-        const bOut = bHasV ? !b.variants!.some(v => v.stock > 0) : (!b.inStock || bStock === 0);
+        const aOut = aHasV ? !a.variants!.some(v => v.stock > 0) : !a.inStock;
+        const bOut = bHasV ? !b.variants!.some(v => v.stock > 0) : !b.inStock;
 
         if (aOut && !bOut) return -1;
         if (!aOut && bOut) return  1;
@@ -866,44 +871,52 @@ const ProductManagement = () => {
             {/* Category + Unit */}
             <div className="grid grid-cols-2 gap-3">
 
-              {/* CATEGORY */}
-              <div>
-                <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Category *</Label>
-                <Select
-                  value={form.category || ""}
-                  onValueChange={v => {
-                    if (v === "__new__") {
-                      setShowNewCat(true);
-                      setTimeout(() => newCatInputRef.current?.focus(), 50);
-                    } else {
-                      updateField("category", v);
-                      setShowNewCat(false);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-10 rounded-xl border-border/60">
-                    <SelectValue placeholder="Select…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allCategories.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        <span className="flex items-center gap-2">
-                          {c.image
-                            ? <img src={c.image} alt="" className="w-4 h-4 rounded object-cover flex-shrink-0" />
-                            : <span className="w-4 h-4 rounded bg-muted flex-shrink-0" />}
-                          {c.name}
+              {/* CATEGORY & SUBCATEGORY */}
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Category *</Label>
+                  <Select
+                    value={form.category || ""}
+                    onValueChange={v => {
+                      if (v === "__new__") {
+                        setShowNewCat(true);
+                        setTimeout(() => newCatInputRef.current?.focus(), 50);
+                      } else {
+                        updateField("category", v);
+                        setShowNewCat(false);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-border/60">
+                      <SelectValue placeholder="Select…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allCategories.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <span className="flex items-center gap-2">
+                            {c.image
+                              ? <img src={c.image} alt="" className="w-4 h-4 rounded object-cover flex-shrink-0" />
+                              : <span className="w-4 h-4 rounded bg-muted flex-shrink-0" />}
+                            {c.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                      <div className="mx-2 my-1 h-px bg-border" />
+                      <SelectItem value="__new__" className="text-primary font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          <FolderPlus className="h-3.5 w-3.5" />
+                          Add new category…
                         </span>
                       </SelectItem>
-                    ))}
-                    <div className="mx-2 my-1 h-px bg-border" />
-                    <SelectItem value="__new__" className="text-primary font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <FolderPlus className="h-3.5 w-3.5" />
-                        Add new category…
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Sub Category</Label>
+                  <Input value={form.subCategory || ""} onChange={e => updateField("subCategory", e.target.value)}
+                    placeholder="e.g. Juices, Sodas (Optional)" className="h-10 rounded-xl border-border/60" />
+                </div>
 
                 {/* Inline new-category form */}
                 <AnimatePresence>

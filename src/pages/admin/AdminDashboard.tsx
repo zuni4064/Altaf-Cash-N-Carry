@@ -332,6 +332,15 @@ const AdminDashboard = () => {
     staleTime: 2 * 60 * 1000,
   });
 
+  /* ── Use the enriched products query (same cache key as ProductManagement)
+        so variant data is available — zero extra network cost when both
+        tabs have been visited, and correct even on first load. ── */
+  const { data: enrichedProducts = [] } = useQuery<any[]>({
+    queryKey: ["products"],
+    staleTime: 2 * 60 * 1000,
+  });
+
+  /* ── Keep raw products query alive for the overview alert pill names ── */
   const { data: products = [] } = useQuery({
     queryKey: ["admin-products-raw"],
     queryFn: async () => {
@@ -388,8 +397,32 @@ const AdminDashboard = () => {
     pending:   orders.filter(o => !["delivered", "cancelled"].includes(o.status)).length,
   }), [orders]);
 
-  const outOfStock = products.filter((p: any) => !p.in_stock || p.stock === 0).length;
-  const lowStock   = products.filter((p: any) => p.in_stock && p.stock > 0 && p.stock <= 5).length;
+  /* ── Variant-aware stock counts ─────────────────────────
+     Uses enrichedProducts (["products"] cache) which has variant
+     arrays attached, so variant-only products are never false-flagged. ── */
+  const { outOfStock, lowStock } = useMemo(() => {
+    let outCount = 0;
+    let lowCount = 0;
+    enrichedProducts.forEach((p: any) => {
+      const hasVariants = Array.isArray(p.variants) && p.variants.length > 0;
+      const isOut = hasVariants
+        ? !p.variants.some((v: any) => v.stock > 0)
+        : !p.inStock;
+      const totalStock = hasVariants
+        ? p.variants.reduce((s: number, v: any) => s + (v.stock ?? 0), 0)
+        : (p.stock ?? 0);
+      if (isOut) {
+        outCount++;
+      } else if (totalStock > 0 && totalStock <= 5) {
+        lowCount++;
+      }
+    });
+    return { outOfStock: outCount, lowStock: lowCount };
+  }, [enrichedProducts]);
+
+  /* ── Alert pill names still come from raw products (has real names) ── */
+  const outOfStockProducts = products.filter((p: any) => !p.in_stock || p.stock === 0);
+  const lowStockProducts   = products.filter((p: any) => p.in_stock && p.stock > 0 && p.stock <= 5);
 
   const enrichedCustomers = useMemo(() => {
     return customers
@@ -607,15 +640,13 @@ const AdminDashboard = () => {
                       {outOfStock > 0 ? `${outOfStock} products out of stock!` : `${lowStock} products running low`}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {(outOfStock > 0
-                        ? products.filter((p: any) => !p.in_stock || p.stock === 0)
-                        : products.filter((p: any) => p.in_stock && p.stock > 0 && p.stock <= 5)
-                      ).slice(0, 4).map((p: any) => (
-                        <span key={p.id} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full
-                          ${outOfStock > 0 ? "bg-destructive/15 text-destructive" : "bg-amber-500/15 text-amber-700"}`}>
-                          {p.name}{p.stock !== undefined ? ` (${p.stock})` : ""}
-                        </span>
-                      ))}
+                      {(outOfStock > 0 ? outOfStockProducts : lowStockProducts)
+                        .slice(0, 4).map((p: any) => (
+                          <span key={p.id} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full
+                            ${outOfStock > 0 ? "bg-destructive/15 text-destructive" : "bg-amber-500/15 text-amber-700"}`}>
+                            {p.name}{p.stock !== undefined ? ` (${p.stock})` : ""}
+                          </span>
+                        ))}
                     </div>
                   </div>
                 </div>
