@@ -142,12 +142,11 @@ const ProductCard = ({
 }) => {
   const hasVariants = (product.variants?.length ?? 0) > 0;
   
-  // A product is entirely out of stock ONLY if it has no stock whatsoever.
-  // For non-variant products: use the inStock flag (admin-controlled) as primary gate.
-  // For variant products: check if any variant has stock > 0.
-  const isOut = hasVariants
-    ? !product.variants!.some(v => v.stock > 0)
-    : !product.inStock;
+  // A product is entirely out of stock if:
+  // - The master inStock flag is false (admin manually disabled), OR
+  // - For variant products: all variants have 0 stock.
+  // The master inStock flag acts as a global on/off override for ALL products.
+  const isOut = !product.inStock || (hasVariants && !product.variants!.some(v => v.stock > 0));
   
   // A product has a PARTIAL stockout if it IS NOT completely out, but AT LEAST ONE variant is out
   const isPartialOut = hasVariants && !isOut && product.variants!.some(v => v.stock === 0);
@@ -234,8 +233,8 @@ const ProductCard = ({
         <div className="absolute top-2 right-2">
           <div className="bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-md">
             <Switch
-              checked={!isOut}
-              disabled={isSaving || hasVariants} // Don't allow quick toggle for variant products
+              checked={product.inStock}
+              disabled={isSaving}
               onCheckedChange={onToggleStock}
               aria-label="Toggle stock"
             />
@@ -390,8 +389,13 @@ const ProductManagement = () => {
   });
 
   const quickToggle = (product: Product) => {
-    const newIn    = !product.inStock;
-    const newStock = newIn ? Math.max(product.stock ?? 1, 1) : 0;
+    const newIn = !product.inStock;
+    const hasProductVariants = (product.variants?.length ?? 0) > 0;
+    // For variant products: only flip the master in_stock flag; leave variant stocks intact.
+    // For regular products: also zero-out / restore the stock number.
+    const newStock = hasProductVariants
+      ? (product.stock ?? 0)          // variant products – don't change stock value
+      : newIn ? Math.max(product.stock ?? 1, 1) : 0;
     toggleMutation.mutate({ id: product.id, newIn, newStock });
   };
 
@@ -525,9 +529,7 @@ const ProductManagement = () => {
     let inStock = 0, outOfStock = 0, lowStock = 0;
     productList.forEach(p => {
       const pHasVariants = (p.variants?.length ?? 0) > 0;
-      const isOut = pHasVariants
-        ? !p.variants!.some(v => v.stock > 0)
-        : !p.inStock;  // for non-variant, trust admin's inStock toggle
+      const isOut = !p.inStock || (pHasVariants && !p.variants!.some(v => v.stock > 0));
       const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
       const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
       const isLow = !isOut && totalStock > 0 && totalStock <= 5;
@@ -549,9 +551,7 @@ const ProductManagement = () => {
       .filter(p => {
         const pHasVariants = (p.variants?.length ?? 0) > 0;
         const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
-        const isOut = pHasVariants
-          ? !p.variants!.some(v => v.stock > 0)
-          : !p.inStock;  // for non-variant, trust admin's inStock toggle
+        const isOut = !p.inStock || (pHasVariants && !p.variants!.some(v => v.stock > 0));
         const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
         const isLow = !isOut && totalStock > 0 && totalStock <= 5;
         const isPartialLow = pHasVariants && !isLow && !isOut && !isPartialOut && p.variants!.some(v => v.stock > 0 && v.stock <= 5);
@@ -573,8 +573,8 @@ const ProductManagement = () => {
         const bHasV = (b.variants?.length ?? 0) > 0;
         const aStock = aHasV ? a.variants!.reduce((acc, v) => acc + v.stock, 0) : (a.stock ?? 0);
         const bStock = bHasV ? b.variants!.reduce((acc, v) => acc + v.stock, 0) : (b.stock ?? 0);
-        const aOut = aHasV ? !a.variants!.some(v => v.stock > 0) : !a.inStock;
-        const bOut = bHasV ? !b.variants!.some(v => v.stock > 0) : !b.inStock;
+        const aOut = !a.inStock || (aHasV && !a.variants!.some(v => v.stock > 0));
+        const bOut = !b.inStock || (bHasV && !b.variants!.some(v => v.stock > 0));
 
         if (aOut && !bOut) return -1;
         if (!aOut && bOut) return  1;
