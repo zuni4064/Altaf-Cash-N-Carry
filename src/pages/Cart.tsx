@@ -64,9 +64,11 @@ const Cart = () => {
         <div className="lg:col-span-2 space-y-3">
           <AnimatePresence initial={false}>
             {items.map((item, i) => {
-              const price = item.product.discount
-                ? Math.round(item.product.price * (1 - item.product.discount / 100))
-                : item.product.price;
+              const price = item.selectedVariant
+                ? item.selectedVariant.price
+                : item.product.discount
+                  ? Math.round(item.product.price * (1 - item.product.discount / 100))
+                  : item.product.price;
 
               return (
                 <motion.div
@@ -102,19 +104,27 @@ const Cart = () => {
                         {item.product.name}
                       </h3>
                     </Link>
+                    {/* Variant label */}
+                    {item.selectedVariant && (
+                      <p className="text-[11px] text-primary/70 font-semibold mt-0.5">
+                        Size: {item.selectedVariant.label}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-primary font-bold text-sm">PKR {price.toLocaleString()}</span>
-                      {item.product.discount && (
+                      {!item.selectedVariant && item.product.discount && (
                         <span className="text-[10px] text-muted-foreground line-through">PKR {item.product.price}</span>
                       )}
-                      <span className="text-[10px] text-muted-foreground">/ {item.product.unit}</span>
+                      <span className="text-[10px] text-muted-foreground">/ {item.selectedVariant?.label ?? item.product.unit}</span>
                     </div>
 
                     {/* Stepper */}
                     <div className="flex items-center gap-2 mt-2">
                       <motion.button
                         whileTap={{ scale: 0.8 }}
-                        onClick={() => item.quantity <= 1 ? removeFromCart(item.product.id) : updateQuantity(item.product.id, item.quantity - 1)}
+                        onClick={() => item.quantity <= 1
+                          ? removeFromCart(item.product.id, item.selectedVariant?.id)
+                          : updateQuantity(item.product.id, item.quantity - 1, item.selectedVariant?.id)}
                         className="w-7 h-7 rounded-full border border-border/60 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
                       >
                         <Minus className="h-3 w-3" />
@@ -133,7 +143,7 @@ const Cart = () => {
                       </AnimatePresence>
                       <motion.button
                         whileTap={{ scale: 0.8 }}
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.selectedVariant?.id)}
                         className="w-7 h-7 rounded-full border border-border/60 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
                       >
                         <Plus className="h-3 w-3" />
@@ -145,7 +155,7 @@ const Cart = () => {
                   <div className="flex flex-col items-end justify-between">
                     <motion.button
                       whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.85 }}
-                      onClick={() => removeFromCart(item.product.id)}
+                      onClick={() => removeFromCart(item.product.id, item.selectedVariant?.id)}
                       className="w-7 h-7 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
                       aria-label="Remove item"
                     >
@@ -193,12 +203,17 @@ const Cart = () => {
 
             <div className="space-y-2 text-sm mb-4">
               {items.map(item => {
-                const p = item.product.discount
-                  ? Math.round(item.product.price * (1 - item.product.discount / 100))
-                  : item.product.price;
+                const p = item.selectedVariant
+                  ? item.selectedVariant.price
+                  : item.product.discount
+                    ? Math.round(item.product.price * (1 - item.product.discount / 100))
+                    : item.product.price;
+                const displayName = item.selectedVariant
+                  ? `${item.product.name} – ${item.selectedVariant.label}`
+                  : item.product.name;
                 return (
-                  <div key={item.product.id} className="flex justify-between text-muted-foreground">
-                    <span className="truncate pr-2">{item.product.name} ×{item.quantity}</span>
+                  <div key={`${item.product.id}-${item.selectedVariant?.id ?? 'base'}`} className="flex justify-between text-muted-foreground">
+                    <span className="truncate pr-2">{displayName} ×{item.quantity}</span>
                     <span className="flex-shrink-0">PKR {(p * item.quantity).toLocaleString()}</span>
                   </div>
                 );

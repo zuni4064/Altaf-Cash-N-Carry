@@ -3,11 +3,12 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import emailjs from '@emailjs/browser';
 import { useAuth } from "@/context/AuthContext";
-import { products as staticProducts, categories as staticCategories, Product, Category } from "@/data/products";
+import { products as staticProducts, categories as staticCategories, Product, Category, ProductVariant } from "@/data/products";
 
 export interface CartItem {
   product: Product;
   quantity: number;
+  selectedVariant?: ProductVariant;  // the chosen weight/size variant, if any
 }
 
 export type OrderStatus = "Pending" | "Preparing" | "Out for Delivery" | "Delivered";
@@ -33,9 +34,9 @@ interface CartContextType {
   orders: Order[];
   products: Product[];
   categories: Category[];
-  addToCart: (product: Product) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addToCart: (product: Product, variant?: ProductVariant) => void;
+  removeFromCart: (productId: string, variantId?: string) => void;
+  updateQuantity: (productId: string, quantity: number, variantId?: string) => void;
   clearCart: () => void;
   getTotal: () => number;
   getItemCount: () => number;
@@ -50,8 +51,21 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+/* ── Map Supabase row → ProductVariant ─────────────────── */
+function mapDbVariant(row: any): ProductVariant {
+  return {
+    id:         row.id,
+    product_id: row.product_id,
+    label:      row.label      ?? "",
+    price:      row.price      ?? 0,
+    stock:      row.stock      ?? 0,
+    is_default: row.is_default ?? false,
+    sort_order: row.sort_order ?? 0,
+  };
+}
+
 /* ── Map Supabase row → Product ─────────────────────────── */
-function mapDbProduct(row: any): Product {
+function mapDbProduct(row: any, variants?: ProductVariant[]): Product {
   return {
     id:            row.id,
     name:          row.name          ?? "Unknown Product",
@@ -67,6 +81,7 @@ function mapDbProduct(row: any): Product {
     stock:         row.stock         ?? 0,
     rating:        row.rating        ?? 4.0,
     reviewCount:   row.review_count  ?? 0,
+    variants:      variants ?? undefined,
   };
 }
 
@@ -134,7 +149,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .select("*")
           .order("created_at", { ascending: true });
 
-        setProductsState((dbProducts ?? []).map(mapDbProduct));
+        /* Fetch all variants in one call and group by product_id */
+        const { data: dbVariants } = await supabase
+          .from("product_variants")
+          .select("*")
+          .order("sort_order", { ascending: true });
+
+        const variantsByProduct = new Map<string, ProductVariant[]>();
+        for (const v of (dbVariants ?? [])) {
+          const mapped = mapDbVariant(v);
+          if (!variantsByProduct.has(v.product_id)) variantsByProduct.set(v.product_id, []);
+          variantsByProduct.get(v.product_id)!.push(mapped);
+        }
+
+        setProductsState(
+          (dbProducts ?? []).map(row =>
+            mapDbProduct(row, variantsByProduct.get(row.id))
+          )
+        );
 
         const { data: dbCategories } = await supabase
           .from("categories")
@@ -276,39 +308,62 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTimeout(() => setCartBounce(false), 300);
   };
 
-  const addToCart = useCallback((product: Product) => {
+  /* ── Cart key helper: same product + same variant = same line ── */
+  const cartKey = (productId: string, variantId?: string) =>
+    variantId ? `${productId}::${variantId}` : productId;
+
+  const addToCart = useCallback((product: Product, variant?: ProductVariant) => {
     setItems(prev => {
-      const existing = prev.find(i => i.product.id === product.id);
-      return existing
-        ? prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
-        : [...prev, { product, quantity: 1 }];
+      const key      = cartKey(product.id, variant?.id);
+      const existing = prev.find(i => cartKey(i.product.id, i.selectedVariant?.id) === key);
+      if (existing) {
+        return prev.map(i =>
+          cartKey(i.product.id, i.selectedVariant?.id) === key
+            ? { ...i, quantity: i.quantity + 1 }
+            : i
+        );
+      }
+      return [...prev, { product, quantity: 1, selectedVariant: variant }];
     });
     triggerBounce();
   }, []);
 
-  const removeFromCart = useCallback((productId: string) => {
-    setItems(prev => prev.filter(i => i.product.id !== productId));
+  const removeFromCart = useCallback((productId: string, variantId?: string) => {
+    const key = cartKey(productId, variantId);
+    setItems(prev => prev.filter(i => cartKey(i.product.id, i.selectedVariant?.id) !== key));
   }, []);
 
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
+  const updateQuantity = useCallback((productId: string, quantity: number, variantId?: string) => {
+    const key     = cartKey(productId, variantId);
     const product = productsState.find(p => p.id === productId);
-    const maxQty  = product?.stock ?? 999;
-    const clamped = Math.min(quantity, maxQty);
+    /* For variant: cap by variant stock; otherwise product stock */
+    const variant = product?.variants?.find(v => v.id === variantId);
+    const maxQty  = variant ? variant.stock : (product?.stock ?? 999);
+    const clamped = Math.min(quantity, maxQty > 0 ? maxQty : 999);
     if (clamped <= 0) {
-      setItems(prev => prev.filter(i => i.product.id !== productId));
+      setItems(prev => prev.filter(i => cartKey(i.product.id, i.selectedVariant?.id) !== key));
     } else {
-      setItems(prev => prev.map(i => i.product.id === productId ? { ...i, quantity: clamped } : i));
+      setItems(prev =>
+        prev.map(i =>
+          cartKey(i.product.id, i.selectedVariant?.id) === key
+            ? { ...i, quantity: clamped }
+            : i
+        )
+      );
     }
   }, [productsState]);
 
-  const clearCart    = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => setItems([]), []);
 
   const getTotal = useCallback(() =>
     items.reduce((sum, item) => {
-      const price = item.product.discount
-        ? item.product.price * (1 - item.product.discount / 100)
-        : item.product.price;
-      return sum + price * item.quantity;
+      /* Variant price takes priority; fall back to product price (with discount) */
+      const basePrice = item.selectedVariant
+        ? item.selectedVariant.price
+        : item.product.discount
+          ? item.product.price * (1 - item.product.discount / 100)
+          : item.product.price;
+      return sum + basePrice * item.quantity;
     }, 0),
   [items]);
 
@@ -337,7 +392,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase
         .from("products").select("*").order("created_at", { ascending: true });
       if (error) throw error;
-      setProductsState((data ?? []).map(mapDbProduct));
+      /* Also refresh variants */
+      const { data: dbVariants } = await supabase
+        .from("product_variants")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      const variantsByProduct = new Map<string, ProductVariant[]>();
+      for (const v of (dbVariants ?? [])) {
+        const mapped = mapDbVariant(v);
+        if (!variantsByProduct.has(v.product_id)) variantsByProduct.set(v.product_id, []);
+        variantsByProduct.get(v.product_id)!.push(mapped);
+      }
+      setProductsState((data ?? []).map(row => mapDbProduct(row, variantsByProduct.get(row.id))));
     } catch (err) {
       console.error("refreshProducts error:", err);
     }
@@ -396,26 +462,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (orderError) throw orderError;
 
       /* 2 ── Insert order items */
-      const orderItems = items.map(item => ({
-        order_id:      orderId,
-        product_id:    item.product.id,
-        quantity:      item.quantity,
-        price_at_time: Math.round(
-          item.product.discount
-            ? item.product.price * (1 - item.product.discount / 100)
-            : item.product.price
-        ),
-      }));
+      const orderItems = items.map(item => {
+        const priceAtTime = item.selectedVariant
+          ? item.selectedVariant.price
+          : Math.round(
+              item.product.discount
+                ? item.product.price * (1 - item.product.discount / 100)
+                : item.product.price
+            );
+        return {
+          order_id:      orderId,
+          product_id:    item.product.id,
+          quantity:      item.quantity,
+          price_at_time: Math.round(priceAtTime),
+          variant_id:    item.selectedVariant?.id    ?? null,
+          variant_label: item.selectedVariant?.label ?? null,
+        };
+      });
       const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
       if (itemsError) throw itemsError;
 
-      /* 3 ── Decrement stock */
+      /* 3 ── Decrement stock (variant stock or product stock) */
       for (const item of items) {
-        const live     = productsState.find(p => p.id === item.product.id);
-        const newStock = Math.max(0, (live?.stock ?? 0) - item.quantity);
-        await supabase.from("products")
-          .update({ stock: newStock, updated_at: new Date().toISOString() })
-          .eq("id", item.product.id);
+        if (item.selectedVariant) {
+          /* Update variant stock */
+          const newStock = Math.max(0, (item.selectedVariant.stock ?? 0) - item.quantity);
+          await supabase.from("product_variants")
+            .update({ stock: newStock })
+            .eq("id", item.selectedVariant.id);
+        } else {
+          /* Update product-level stock */
+          const live     = productsState.find(p => p.id === item.product.id);
+          const newStock = Math.max(0, (live?.stock ?? 0) - item.quantity);
+          await supabase.from("products")
+            .update({ stock: newStock, updated_at: new Date().toISOString() })
+            .eq("id", item.product.id);
+        }
       }
 
       setProductsState(prev => prev.map(p => {
@@ -430,13 +512,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (email) {
         try {
           const itemsHtml = order.items.map(item => {
-            const price = Math.round(
-              item.product.discount
-                ? item.product.price * (1 - item.product.discount / 100)
-                : item.product.price
-            );
+            const price = item.selectedVariant
+              ? Math.round(item.selectedVariant.price)
+              : Math.round(
+                  item.product.discount
+                    ? item.product.price * (1 - item.product.discount / 100)
+                    : item.product.price
+                );
+            const displayName = item.selectedVariant
+              ? `${item.product.name} – ${item.selectedVariant.label}`
+              : item.product.name;
             return `<tr>
-              <td style="padding:8px 12px;border-bottom:1px solid #eee;">${item.product.name}</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #eee;">${displayName}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center;">${item.quantity}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;">PKR ${price * item.quantity}</td>
             </tr>`;

@@ -73,10 +73,16 @@ const ProductCard = ({ product }: { product: Product }) => {
   };
   const onMouseLeave = () => { mouseX.set(0); mouseY.set(0); };
 
-  const imageSrc   = product.image || PLACEHOLDER_IMAGE;
-  const finalPrice = product.discount
-    ? Math.round(product.price * (1 - product.discount / 100))
-    : product.price;
+  const imageSrc    = product.image || PLACEHOLDER_IMAGE;
+  const hasVariants = (product.variants?.length ?? 0) > 0;
+
+  /* Price display: lowest variant price, or regular/discounted price */
+  const displayPrice = hasVariants
+    ? Math.min(...product.variants!.map(v => v.price))
+    : product.discount
+      ? Math.round(product.price * (1 - product.discount / 100))
+      : product.price;
+  const finalPrice = displayPrice;
 
   const badgeCfg = product.badge ? BADGE_CONFIG[product.badge] : null;
   const inStock  = product.inStock && (product.stock === undefined || product.stock > 0);
@@ -198,15 +204,19 @@ const ProductCard = ({ product }: { product: Product }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-base font-extrabold text-primary leading-none"
               >
-                PKR {finalPrice.toLocaleString()}
+                {hasVariants ? "from " : ""}PKR {finalPrice.toLocaleString()}
               </motion.span>
-              {product.discount && (
+              {!hasVariants && product.discount && (
                 <span className="text-[10px] text-muted-foreground line-through">
                   {product.price.toLocaleString()}
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">per {product.unit}</span>
+            {hasVariants ? (
+              <span className="text-[10px] text-primary/70 font-semibold mt-0.5">Sizes available</span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground mt-0.5">per {product.unit}</span>
+            )}
           </div>
 
           <AnimatePresence mode="wait">
@@ -215,6 +225,21 @@ const ProductCard = ({ product }: { product: Product }) => {
                 className="text-[10px] text-muted-foreground italic">
                 Out of stock
               </motion.span>
+            ) : hasVariants ? (
+              /* Variant product: go to detail page to pick a size */
+              <motion.div key="pick"
+                initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.75 }}
+                transition={{ type: "spring", stiffness: 300 }}
+                whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.9 }}>
+                <Link to={`/product/${product.id}`}>
+                  <Button size="sm"
+                    className="h-8 px-3 text-xs font-bold rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 relative overflow-hidden">
+                    <motion.span className="absolute inset-0 bg-white/20 skew-x-[-15deg]"
+                      initial={{ x: "-130%" }} whileHover={{ x: "230%" }} transition={{ duration: 0.30 }} />
+                    <ShoppingCart className="h-3 w-3 mr-1" /> Pick Size
+                  </Button>
+                </Link>
+              </motion.div>
             ) : cartItem ? (
               <motion.div key="stepper"
                 initial={{ opacity: 0, scale: 0.75 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.75 }}

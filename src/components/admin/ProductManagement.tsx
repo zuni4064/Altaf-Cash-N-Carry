@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { products as defaultProducts, categories as staticCategories, type Product } from "@/data/products";
+import { products as defaultProducts, categories as staticCategories, type Product, type ProductVariant } from "@/data/products";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Pencil, Trash2, Search, Package, RefreshCw,
   AlertTriangle, CheckCircle2, TrendingDown,
-  SlidersHorizontal, X, Zap, FolderPlus, Loader2, ImageIcon,
+  SlidersHorizontal, X, Zap, FolderPlus, Loader2, ImageIcon, GripVertical
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,11 +53,23 @@ type DbProduct = {
 
 type Category = { id: string; name: string; image?: string };
 
-/* ── Fetch & merge products ─────────────────────────────── */
+/* ── Fetch & merge products ── */
 const fetchAndMergeProducts = async (): Promise<Product[]> => {
   const staticMap = new Map(defaultProducts.map(p => [p.id, p]));
   const { data: rows, error } = await supabase
     .from("products").select("*").order("created_at", { ascending: true }) as { data: DbProduct[] | null; error: any };
+
+  const { data: variantRows } = await supabase
+    .from("product_variants").select("*").order("sort_order", { ascending: true });
+
+  const variantsByProduct = new Map<string, ProductVariant[]>();
+  for (const v of (variantRows ?? [])) {
+    if (!variantsByProduct.has(v.product_id)) variantsByProduct.set(v.product_id, []);
+    variantsByProduct.get(v.product_id)!.push({
+      id: v.id, product_id: v.product_id, label: v.label, price: v.price,
+      stock: v.stock, is_default: v.is_default, sort_order: v.sort_order
+    });
+  }
 
   if (!error && rows && rows.length > 0) {
     const dbIds  = new Set(rows.map(r => r.id));
@@ -73,6 +85,7 @@ const fetchAndMergeProducts = async (): Promise<Product[]> => {
         inStock: r.in_stock, stock: r.stock ?? 0,
         rating: r.rating ?? s?.rating ?? 4.0,
         reviewCount: r.review_count ?? s?.reviewCount ?? 0,
+        variants: variantsByProduct.get(r.id) ?? undefined,
       } as Product;
     });
     const extra = defaultProducts.filter(p => !dbIds.has(p.id))
@@ -126,10 +139,32 @@ const ProductCard = ({
   onEdit: () => void; onDelete: () => void;
   onToggleStock: () => void; isSaving: boolean;
 }) => {
-  const isOut = !product.inStock || (product.stock ?? 0) === 0;
-  const isLow = product.inStock && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= 5;
-  const stockPct = Math.min(((product.stock ?? 0) / 50) * 100, 100);
+  const hasVariants = (product.variants?.length ?? 0) > 0;
+  
+  // A product is entirely out of stock ONLY if it has no stock whatsoever.
+  const isOut = hasVariants
+    ? !product.variants!.some(v => v.stock > 0)
+    : (!product.inStock || (product.stock ?? 0) === 0);
+  
+  // A product has a PARTIAL stockout if it IS NOT completely out, but AT LEAST ONE variant is out
+  const isPartialOut = hasVariants && !isOut && product.variants!.some(v => v.stock === 0);
+  
+  const totalStock = hasVariants
+    ? product.variants!.reduce((sum, v) => sum + v.stock, 0)
+    : (product.stock ?? 0);
+
+  // A product is entirely low stock if total stock <= 5 (and not 0)
+  const isLow = (!isOut && totalStock > 0 && totalStock <= 5);
+  
+  // A product has a PARTIAL low stock if it's not entirely low, but AT LEAST ONE variant is low (and not 0)
+  const isPartialLow = hasVariants && !isLow && !isOut && !isPartialOut && product.variants!.some(v => v.stock > 0 && v.stock <= 5);
+
+  const stockPct = Math.min((totalStock / 50) * 100, 100);
   const badge = product.badge ? BADGE_META[product.badge] : null;
+
+  const displayPrice = hasVariants
+    ? Math.min(...product.variants!.map(v => v.price))
+    : product.price;
 
   return (
     <div
@@ -170,9 +205,19 @@ const ProductCard = ({
               Out of Stock
             </span>
           )}
+          {isPartialOut && (
+            <span className="bg-orange-500 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg uppercase tracking-wide">
+              Partial Stockout
+            </span>
+          )}
           {isLow && !isOut && (
             <span className="bg-amber-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow">
-              Low: {product.stock}
+              Low: {totalStock}
+            </span>
+          )}
+          {isPartialLow && !isPartialOut && (
+            <span className="bg-amber-500 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-lg uppercase tracking-wide">
+              Partial Low Stock
             </span>
           )}
           {badge && !isOut && (
@@ -186,8 +231,8 @@ const ProductCard = ({
         <div className="absolute top-2 right-2">
           <div className="bg-white/90 backdrop-blur-sm rounded-full p-1 shadow-md">
             <Switch
-              checked={product.inStock && (product.stock ?? 0) > 0}
-              disabled={isSaving}
+              checked={!isOut}
+              disabled={isSaving || hasVariants} // Don't allow quick toggle for variant products
               onCheckedChange={onToggleStock}
               aria-label="Toggle stock"
             />
@@ -195,7 +240,7 @@ const ProductCard = ({
         </div>
 
         {/* Discount ribbon */}
-        {product.discount && !isOut && (
+        {product.discount && !isOut && !hasVariants && (
           <div className="absolute bottom-0 right-0 bg-red-500 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-tl-xl">
             −{product.discount}%
           </div>
@@ -208,9 +253,11 @@ const ProductCard = ({
         </p>
         <h3 className="font-bold text-xs md:text-sm leading-snug line-clamp-2 mb-2">{product.name}</h3>
         <div className="flex items-baseline gap-1 mb-2.5">
-          <span className="font-extrabold text-primary text-sm md:text-base">PKR {product.price.toLocaleString()}</span>
-          <span className="text-muted-foreground text-[10px]">/{product.unit}</span>
-          {product.discount && (
+          <span className="font-extrabold text-primary text-sm md:text-base">
+            {hasVariants && "from "}PKR {displayPrice.toLocaleString()}
+          </span>
+          {!hasVariants && <span className="text-muted-foreground text-[10px]">/{product.unit}</span>}
+          {product.discount && !hasVariants && (
             <span className="text-muted-foreground text-[10px] line-through ml-auto">
               {Math.round(product.price / (1 - product.discount / 100)).toLocaleString()}
             </span>
@@ -219,7 +266,8 @@ const ProductCard = ({
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] font-semibold">
             <span className={isOut ? "text-destructive" : isLow ? "text-amber-600" : "text-muted-foreground"}>
-              {isOut ? "No stock" : `${product.stock} units`}
+              {hasVariants ? `${product.variants!.length} sizes - ` : ""}
+              {isOut ? "No stock" : `${totalStock} units`}
             </span>
             <span className="text-muted-foreground">{Math.round(stockPct)}%</span>
           </div>
@@ -228,7 +276,7 @@ const ProductCard = ({
               initial={{ width: 0 }}
               animate={{ width: `${stockPct}%` }}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className={`h-full rounded-full ${isOut ? "bg-destructive" : isLow ? "bg-amber-500" : "bg-emerald-500"}`}
+              className={`h-full rounded-full ${isOut ? "bg-destructive" : isPartialOut ? "bg-orange-500" : isLow || isPartialLow ? "bg-amber-500" : "bg-emerald-500"}`}
             />
           </div>
         </div>
@@ -258,6 +306,10 @@ const ProductManagement = () => {
   const newCatInputRef = useRef<HTMLInputElement>(null);
 
   const [showCustomUnit, setShowCustomUnit] = useState(false);
+  
+  /* Variant Form State */
+  const [formVariants, setFormVariants] = useState<ProductVariant[]>([]);
+  const [hasVariants, setHasVariants] = useState(false);
 
   /* ── Mark mounted so stat cards skip entrance on re-show ── */
   useEffect(() => { statsMounted = true; }, []);
@@ -343,17 +395,34 @@ const ProductManagement = () => {
   const addMutation = useMutation({
     mutationFn: async (data: Partial<Product> & { id: string }) => {
       const { error } = await supabase.from("products").insert({
-        id: data.id, name: data.name!, category: data.category!, price: data.price!,
+        id: data.id, name: data.name!, category: data.category!, 
+        price: hasVariants ? 0 : data.price!,
         unit: data.unit || "kg", description: data.description || "",
-        image: data.image || "", badge: data.badge || null, discount: data.discount || null,
-        in_stock: data.inStock ?? true, stock: data.stock || 50,
+        image: data.image || "", badge: data.badge || null, 
+        discount: hasVariants ? null : (data.discount || null),
+        in_stock: data.inStock ?? true, 
+        stock: hasVariants ? 0 : (data.stock || 50),
         rating: data.rating || 4.0, review_count: data.reviewCount || 0,
       });
       if (error) throw error;
+      
+      if (hasVariants && formVariants.length > 0) {
+        const variantsToInsert = formVariants.map(v => ({
+          product_id: data.id,
+          label: v.label,
+          price: v.price,
+          stock: v.stock,
+          is_default: v.is_default,
+          sort_order: v.sort_order
+        }));
+        const { error: variantError } = await supabase.from("product_variants").insert(variantsToInsert);
+        if (variantError) throw variantError;
+      }
+      
       return data;
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<Product[]>(["products"], old => [data as Product, ...(old || [])]);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["admin-products-raw"] });
       toast.success(`"${data.name}" added ✓`);
       setDialogOpen(false); resetDialogExtras(); setForm(emptyProduct);
@@ -364,20 +433,43 @@ const ProductManagement = () => {
   const editMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Product> }) => {
       const { error } = await supabase.from("products").update({
-        name: data.name, category: data.category, price: data.price!,
+        name: data.name, category: data.category, 
+        price: hasVariants ? 0 : data.price!,
         unit: data.unit || "kg", description: data.description || "",
-        image: data.image || "", badge: data.badge || null, discount: data.discount || null,
-        stock: data.stock || 0, in_stock: data.inStock ?? true,
+        image: data.image || "", badge: data.badge || null, 
+        discount: hasVariants ? null : (data.discount || null),
+        stock: hasVariants ? 0 : (data.stock || 0), 
+        in_stock: data.inStock ?? true,
         rating: data.rating || 4.0, review_count: data.reviewCount || 0,
         updated_at: new Date().toISOString(),
       }).eq("id", id);
       if (error) throw error;
+      
+      if (hasVariants) {
+        // Delete existing variants
+        await supabase.from("product_variants").delete().eq("product_id", id);
+        // Insert new variants
+        if (formVariants.length > 0) {
+          const variantsToInsert = formVariants.map(v => ({
+            product_id: id,
+            label: v.label,
+            price: v.price,
+            stock: v.stock,
+            is_default: v.is_default,
+            sort_order: v.sort_order
+          }));
+          const { error: variantError } = await supabase.from("product_variants").insert(variantsToInsert);
+          if (variantError) throw variantError;
+        }
+      } else {
+        // If switched to no variants, delete any existing ones
+        await supabase.from("product_variants").delete().eq("product_id", id);
+      }
+      
       return { id, data };
     },
     onSuccess: ({ id, data }) => {
-      queryClient.setQueryData<Product[]>(["products"], old =>
-        (old || []).map(p => p.id === id ? { ...p, ...data } as Product : p)
-      );
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["admin-products-raw"] });
       toast.success(`"${data.name}" updated ✓`);
       setDialogOpen(false); resetDialogExtras(); setForm(emptyProduct);
@@ -426,35 +518,68 @@ const ProductManagement = () => {
   };
 
   /* ── Derived stats ── */
-  const stats = useMemo(() => ({
-    total:      productList.length,
-    inStock:    productList.filter(p => p.inStock && (p.stock ?? 0) > 0).length,
-    outOfStock: productList.filter(p => !p.inStock || (p.stock ?? 0) === 0).length,
-    lowStock:   productList.filter(p => p.inStock && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5).length,
-  }), [productList]);
+  const stats = useMemo(() => {
+    let inStock = 0, outOfStock = 0, lowStock = 0;
+    productList.forEach(p => {
+      const pHasVariants = (p.variants?.length ?? 0) > 0;
+      const isOut = pHasVariants ? !p.variants!.some(v => v.stock > 0) : (!p.inStock || (p.stock ?? 0) === 0);
+      const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
+      const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
+      const isLow = !isOut && totalStock > 0 && totalStock <= 5;
+      const isPartialLow = pHasVariants && !isLow && !isOut && !isPartialOut && p.variants!.some(v => v.stock > 0 && v.stock <= 5);
+
+      // If a product is completely out or partially out, we count it in "Out Of Stock" stats
+      if (isOut || isPartialOut) outOfStock++;
+      // If it's low (and not fully/partially out) OR partially low, we count it in low stock
+      else if (isLow || isPartialLow) lowStock++;
+      // Otherwise, it's fully in stock
+      else inStock++;
+    });
+
+    return { total: productList.length, inStock, outOfStock, lowStock };
+  }, [productList]);
 
   const filtered = useMemo(() => {
     return productList
       .filter(p => {
-        const isOut = !p.inStock || (p.stock ?? 0) === 0;
-        const isLow = p.inStock && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5;
+        const pHasVariants = (p.variants?.length ?? 0) > 0;
+        const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
+        const isOut = pHasVariants 
+          ? !p.variants!.some(v => v.stock > 0)
+          : (!p.inStock || (p.stock ?? 0) === 0);
+        const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
+        const isLow = !isOut && totalStock > 0 && totalStock <= 5;
+        const isPartialLow = pHasVariants && !isLow && !isOut && !isPartialOut && p.variants!.some(v => v.stock > 0 && v.stock <= 5);
+
+        // If filtering by 'out', include fully out OR partially out.
+        // If filtering by 'in', include fully in stock OR partially out (since they hold some stock).
+        // If filtering by 'low', include fully low OR partially low.
         return (
           p.name.toLowerCase().includes(search.toLowerCase()) &&
           (catFilter === "all" || p.category === catFilter) &&
           (stockFilter === "all"
-            || (stockFilter === "out" && isOut)
-            || (stockFilter === "in"  && !isOut)
-            || (stockFilter === "low" && isLow))
+            || (stockFilter === "out" && (isOut || isPartialOut))
+            || (stockFilter === "in"  && (!isOut && !isPartialOut && !isPartialLow))
+            || (stockFilter === "low" && (isLow || isPartialLow)))
         );
       })
       .sort((a, b) => {
-        const aOut = !a.inStock || (a.stock ?? 0) === 0;
-        const bOut = !b.inStock || (b.stock ?? 0) === 0;
+        const aHasV = (a.variants?.length ?? 0) > 0;
+        const bHasV = (b.variants?.length ?? 0) > 0;
+        const aStock = aHasV ? a.variants!.reduce((acc, v) => acc + v.stock, 0) : (a.stock ?? 0);
+        const bStock = bHasV ? b.variants!.reduce((acc, v) => acc + v.stock, 0) : (b.stock ?? 0);
+        const aOut = aHasV ? !a.variants!.some(v => v.stock > 0) : (!a.inStock || aStock === 0);
+        const bOut = bHasV ? !b.variants!.some(v => v.stock > 0) : (!b.inStock || bStock === 0);
+
         if (aOut && !bOut) return -1;
         if (!aOut && bOut) return  1;
-        if (sortBy === "price-asc")  return a.price - b.price;
-        if (sortBy === "price-desc") return b.price - a.price;
-        if (sortBy === "stock")      return (a.stock ?? 0) - (b.stock ?? 0);
+        
+        const aPrice = aHasV ? Math.min(...a.variants!.map(v => v.price)) : a.price;
+        const bPrice = bHasV ? Math.min(...b.variants!.map(v => v.price)) : b.price;
+
+        if (sortBy === "price-asc")  return aPrice - bPrice;
+        if (sortBy === "price-desc") return bPrice - aPrice;
+        if (sortBy === "stock")      return aStock - bStock;
         return a.name.localeCompare(b.name);
       });
   }, [productList, search, catFilter, stockFilter, sortBy]);
@@ -462,6 +587,8 @@ const ProductManagement = () => {
   /* ── Dialog helpers ── */
   const resetDialogExtras = () => {
     setShowNewCat(false); setNewCatName(""); setNewCatImage(""); setShowCustomUnit(false);
+    setHasVariants(false);
+    setFormVariants([]);
   };
 
   const openAdd = () => {
@@ -476,16 +603,62 @@ const ProductManagement = () => {
     setEditing(p);
     setForm({ ...p });
     if (p.unit && !PRESET_UNITS.includes(p.unit)) setShowCustomUnit(true);
+    if (p.variants && p.variants.length > 0) {
+      setHasVariants(true);
+      setFormVariants([...p.variants]);
+    } else {
+      setHasVariants(false);
+      setFormVariants([]);
+    }
     setDialogOpen(true);
   };
 
   const updateField = (k: keyof Partial<Product>, v: any) =>
     setForm(prev => ({ ...prev, [k]: v }));
 
+  const updateVariant = (index: number, k: keyof ProductVariant, v: any) => {
+    setFormVariants(prev => {
+      const next = [...prev];
+      if (k === "is_default" && v === true) {
+        next.forEach(variant => variant.is_default = false);
+      }
+      next[index] = { ...next[index], [k]: v };
+      return next;
+    });
+  };
+
+  const removeVariant = (index: number) => {
+    setFormVariants(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addVariant = () => {
+    const isFirst = formVariants.length === 0;
+    setFormVariants(prev => [
+      ...prev, 
+      { 
+        id: `var-${Date.now()}`, 
+        product_id: form.id || "", 
+        label: "", 
+        price: form.price || 0, 
+        stock: 50, 
+        is_default: isFirst, 
+        sort_order: prev.length 
+      }
+    ]);
+  };
+
   const handleSave = () => {
     if (!form.name?.trim())             { toast.error("Name required"); return; }
     if (!form.category)                 { toast.error("Category required"); return; }
-    if (!form.price || form.price <= 0) { toast.error("Price must be > 0"); return; }
+    
+    if (hasVariants) {
+      if (formVariants.length === 0) { toast.error("Please add at least one variant"); return; }
+      const invalidVariant = formVariants.find(v => !v.label.trim() || v.price <= 0);
+      if (invalidVariant) { toast.error("Variant labels and valid prices are required"); return; }
+    } else {
+      if (!form.price || form.price <= 0) { toast.error("Price must be > 0"); return; }
+    }
+    
     if (showCustomUnit && !form.unit?.trim()) { toast.error("Please enter a unit"); return; }
     if (!form.inStock) form.stock = 0;
 
@@ -867,37 +1040,119 @@ const ProductManagement = () => {
               </div>
             </div>
 
-            {/* Price + Discount */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Variants Toggle */}
+            <div className="flex items-center justify-between pb-2 border-b border-border/40">
               <div>
-                <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Price (PKR) *</Label>
-                <Input type="number" min="0.01" step="0.01" value={form.price || ""}
-                  onChange={e => updateField("price", parseFloat(e.target.value) || 0)}
-                  className="h-10 rounded-xl border-border/60" />
+                <Label className="text-sm font-bold block">Has Sizes / Weights</Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Toggle this if the product comes in different variants with different prices</p>
               </div>
-              <div>
-                <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Discount %</Label>
-                <Input type="number" min="0" max="100" value={form.discount || ""}
-                  onChange={e => updateField("discount", parseFloat(e.target.value) || undefined)}
-                  placeholder="0" className="h-10 rounded-xl border-border/60" />
-              </div>
+              <Switch checked={hasVariants} onCheckedChange={(v) => {
+                setHasVariants(v);
+                if (v && formVariants.length === 0) {
+                  addVariant();
+                }
+              }} />
             </div>
 
-            {/* Stock + Toggle */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Stock Qty</Label>
-                <Input type="number" min="0" value={form.stock ?? ""}
-                  onChange={e => updateField("stock", parseInt(e.target.value) || 0)}
-                  className="h-10 rounded-xl border-border/60" />
-              </div>
-              <div className="flex flex-col justify-end">
-                <div className="flex items-center justify-between bg-muted/40 rounded-xl border border-border/50 px-3 h-10">
-                  <Label htmlFor="dlgInStock" className="text-sm font-semibold cursor-pointer">In Stock</Label>
-                  <Switch id="dlgInStock" checked={form.inStock ?? true} onCheckedChange={v => updateField("inStock", v)} />
+            {hasVariants ? (
+              <div className="space-y-3 bg-muted/20 p-3 rounded-xl border border-border/60">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground">Variants</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={addVariant} className="h-7 text-xs rounded-lg gap-1">
+                    <Plus className="h-3 w-3" /> Add Size
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  {formVariants.map((variant, idx) => (
+                    <motion.div 
+                      key={idx} 
+                      initial={{ opacity: 0, height: 0 }} 
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="grid grid-cols-[1fr_100px_80px_auto_auto] gap-2 items-center bg-card p-2 rounded-lg border border-border/60"
+                    >
+                      <div>
+                        <Input 
+                          placeholder="e.g. 500g, Large, Pack of 6" 
+                          value={variant.label} 
+                          onChange={e => updateVariant(idx, "label", e.target.value)}
+                          className="h-8 text-xs rounded-md border-border/60" 
+                        />
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">PKR</span>
+                        <Input 
+                          type="number" min="0" step="0.01" 
+                          value={variant.price || ""} 
+                          onChange={e => updateVariant(idx, "price", parseFloat(e.target.value) || 0)}
+                          className="h-8 text-xs pl-8 rounded-md border-border/60" 
+                        />
+                      </div>
+                      <div>
+                        <Input 
+                          type="number" min="0" 
+                          value={variant.stock ?? ""} 
+                          onChange={e => updateVariant(idx, "stock", parseInt(e.target.value) || 0)}
+                          className="h-8 text-xs rounded-md border-border/60" 
+                          placeholder="Stock"
+                        />
+                      </div>
+                      <div className="flex items-center justify-center pt-1" title="Mark as Default">
+                        <Switch 
+                          checked={variant.is_default} 
+                          onCheckedChange={v => updateVariant(idx, "is_default", v)} 
+                          className="data-[state=checked]:bg-primary h-5 w-9" 
+                        />
+                      </div>
+                      <Button 
+                        type="button" variant="ghost" size="icon" 
+                        onClick={() => removeVariant(idx)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
+                  ))}
+                  {formVariants.length === 0 && (
+                    <p className="text-xs text-center text-destructive py-2">Please add at least one variant.</p>
+                  )}
                 </div>
               </div>
-            </div>
+            ) : (
+              /* Single Price + Discount + Stock */
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Price (PKR) *</Label>
+                    <Input type="number" min="0.01" step="0.01" value={form.price || ""}
+                      onChange={e => updateField("price", parseFloat(e.target.value) || 0)}
+                      className="h-10 rounded-xl border-border/60" />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Discount %</Label>
+                    <Input type="number" min="0" max="100" value={form.discount || ""}
+                      onChange={e => updateField("discount", parseFloat(e.target.value) || undefined)}
+                      placeholder="0" className="h-10 rounded-xl border-border/60" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1.5 block">Stock Qty</Label>
+                    <Input type="number" min="0" value={form.stock ?? ""}
+                      onChange={e => updateField("stock", parseInt(e.target.value) || 0)}
+                      className="h-10 rounded-xl border-border/60" />
+                  </div>
+                  <div className="flex flex-col justify-end">
+                    <div className="flex items-center justify-between bg-muted/40 rounded-xl border border-border/50 px-3 h-10">
+                      <Label htmlFor="dlgInStock" className="text-sm font-semibold cursor-pointer">In Stock</Label>
+                      <Switch id="dlgInStock" checked={form.inStock ?? true} onCheckedChange={v => updateField("inStock", v)} />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Image URL */}
             <div>

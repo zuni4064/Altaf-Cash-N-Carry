@@ -5,6 +5,16 @@
 // Admin uploads images to Supabase Storage; URLs are stored in the DB.
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface ProductVariant {
+  id: string;          // UUID from product_variants table
+  product_id: string;
+  label: string;       // e.g. "500g", "1kg", "Family Pack"
+  price: number;
+  stock: number;
+  is_default: boolean;
+  sort_order: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -20,6 +30,7 @@ export interface Product {
   stock?: number;
   rating?: number;
   reviewCount?: number;
+  variants?: ProductVariant[];  // weight/size options with individual prices
 }
 
 export interface Category {
