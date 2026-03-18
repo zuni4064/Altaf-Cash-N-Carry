@@ -2,14 +2,14 @@ import { Product } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, Heart, Eye, Star } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Heart, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   motion, AnimatePresence,
   useMotionValue, useTransform, useSpring,
 } from "framer-motion";
-import { useRef, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useRef } from "react";
+
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -20,17 +20,7 @@ const BADGE_CONFIG: Record<string, { style: string; label: string }> = {
   "out-of-stock": { style: "bg-muted text-muted-foreground", label: "Sold Out"       },
 };
 
-/* ── Mini star display ─────────────────────────────────── */
-const Stars = ({ rating }: { rating: number }) => (
-  <div className="flex items-center gap-0.5">
-    {Array.from({ length: 5 }).map((_, i) => (
-      <Star
-        key={i}
-        className={`h-3 w-3 ${i < Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
-      />
-    ))}
-  </div>
-);
+
 
 const ProductCard = ({ product }: { product: Product }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
@@ -40,24 +30,7 @@ const ProductCard = ({ product }: { product: Product }) => {
   const isWishlisted = isInWishlist(product.id);
   const cardRef      = useRef<HTMLDivElement>(null);
 
-  /* ── Real rating fetched from product_ratings view ── */
-  const [avgRating,    setAvgRating]    = useState<number | null>(null);
-  const [reviewCount,  setReviewCount]  = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    supabase
-      .from("product_ratings")
-      .select("avg_rating, review_count")
-      .eq("product_id", product.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        setAvgRating(Number(data.avg_rating));
-        setReviewCount(Number(data.review_count));
-      });
-    return () => { cancelled = true; };
-  }, [product.id]);
 
   /* ── 3-D tilt ── */
   const mouseX  = useMotionValue(0);
@@ -187,15 +160,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           </h3>
         </Link>
 
-        {/* Real rating — only shown when data has loaded */}
-        {avgRating !== null && reviewCount !== null && reviewCount > 0 && (
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Stars rating={avgRating} />
-            <span className="text-[10px] text-muted-foreground font-medium">
-              {avgRating.toFixed(1)} ({reviewCount})
-            </span>
-          </div>
-        )}
+
 
         {/* Price + cart */}
         <div className="flex items-center justify-between gap-2 mt-2">

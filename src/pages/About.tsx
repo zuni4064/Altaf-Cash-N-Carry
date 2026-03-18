@@ -89,9 +89,9 @@ const About = () => {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 180 }}
-            className="inline-flex items-center gap-2 text-secondary text-xs font-bold tracking-widest uppercase mb-4 bg-white/10 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/20"
+            className="inline-flex items-center gap-2 text-primary text-xs font-bold tracking-widest uppercase mb-4 bg-white/10 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/20"
           >
-            <motion.span animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full bg-secondary inline-block" />
+            <motion.span animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1.5, repeat: Infinity }} className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
             Est. 2019 · Central Park Society, Lahore
           </motion.div>
 
@@ -101,7 +101,7 @@ const About = () => {
             transition={{ delay: 0.15, type: "spring", stiffness: 100 }}
             className="text-5xl md:text-7xl font-display font-extrabold mb-4 drop-shadow-xl leading-tight"
           >
-            About <span className="text-secondary">Altaf</span><br />
+            About <span className="text-primary">Altaf</span><br />
             Cash &amp; Carry
           </motion.h1>
 

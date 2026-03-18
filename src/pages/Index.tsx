@@ -1,5 +1,5 @@
 import HeroSection from "@/components/HeroSection";
-import ReviewsCarousel from "@/components/ReviewsCarousel";
+
 import ProductCard from "@/components/ProductCard";
 import { useCart } from "@/context/CartContext";
 import { Link } from "react-router-dom";
@@ -128,7 +128,7 @@ const SectionHeading = ({
           {subtitle}
         </p>
       )}
-      {/* Navy→Crimson animated underline bar */}
+      {/* Crimson→Navy animated underline bar */}
       <motion.div
         className="mt-4 flex items-center gap-1.5"
         initial={{ opacity: 0, x: -16 }}
@@ -138,7 +138,7 @@ const SectionHeading = ({
         <motion.div
           className="h-[2px] rounded-full"
           style={{
-            background: `linear-gradient(90deg, ${B.navyBright}, ${B.navyLight}, ${B.crimsonCore}, transparent)`,
+            background: `linear-gradient(90deg, ${B.crimsonVivid}, ${B.crimsonCore}, ${B.navyBright}, transparent)`,
             width: 52,
           }}
           initial={{ scaleX: 0, originX: 0 }}
@@ -867,11 +867,10 @@ const Index = () => {
           title="Best Sellers"
           subtitle="Our customers keep coming back for these."
           viewAllLink="/shop"
-          accentColor={B.navyBright}
+          accentColor={B.crimsonCore}
         />
         <OrganicDivider />
         <HotDealsSection products={discounted} />
-        <ReviewsCarousel />
         <EditorialCTA />
       </div>
     </PageTransition>

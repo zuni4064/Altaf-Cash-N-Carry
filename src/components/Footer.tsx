@@ -48,7 +48,7 @@ const FooterLink = ({ to, label }: { to: string; label: string }) => (
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       className="flex items-center gap-1.5 text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors group"
     >
-      <motion.span className="w-0 h-px bg-secondary group-hover:w-3 transition-all duration-200 inline-block" />
+      <motion.span className="w-0 h-px bg-white/60 group-hover:w-3 transition-all duration-200 inline-block" />
       {label}
     </Link>
   </motion.div>
@@ -58,7 +58,7 @@ const Footer = () => {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative bg-primary text-primary-foreground mt-16 overflow-hidden">
+    <footer className="relative text-white mt-16 overflow-hidden" style={{ backgroundColor: "hsl(245,70%,30%)" }}>
 
       {/* Decorative blobs */}
       {[

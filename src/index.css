@@ -5,9 +5,9 @@
 @layer base {
   :root {
     /* ── Altaf Cash & Carry Brand Palette ──────────────────
-       Primary  : Deep Navy Purple  (the "ALTAF" lettering)
-       Secondary: Crimson Red       (sun rays & "CASH & CARRY")
-       Accent   : Bright White      (outlines & highlights)
+       Primary  : Crimson Red   (sun + action elements — CTAs, prices, links)
+       Secondary: Deep Navy     ("ALTAF" wordmark — structure, nav, overlays)
+       Accent   : Bright White  (outlines & highlights)
     ─────────────────────────────────────────────────────── */
 
     --background: 240 20% 97%;
@@ -19,39 +19,39 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 30% 10%;
 
-    /* Navy Purple — primary brand colour */
-    --primary: 245 70% 35%;
+    /* Crimson Red — PRIMARY action colour (buttons, prices, active states) */
+    --primary: 4 80% 42%;
     --primary-foreground: 0 0% 100%;
 
-    /* Crimson Red — secondary brand colour */
-    --secondary: 4 80% 42%;
+    /* Deep Navy — SECONDARY structural colour */
+    --secondary: 245 70% 35%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 240 10% 93%;
     --muted-foreground: 240 10% 40%;
 
-    /* Accent = Crimson Red (matches secondary) */
-    --accent: 4 80% 42%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent = Navy (hover tint on ghost buttons, mobile active bg) */
+    --accent: 245 60% 92%;
+    --accent-foreground: 245 70% 25%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 240 10% 86%;
     --input: 240 10% 86%;
-    --ring: 245 70% 35%;
+    --ring: 4 80% 42%;
 
     --radius: 0.75rem;
 
     /* Sidebar */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 245 70% 35%;
+    --sidebar-primary: 4 80% 42%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 240 10% 93%;
     --sidebar-accent-foreground: 240 30% 10%;
     --sidebar-border: 240 10% 86%;
-    --sidebar-ring: 245 70% 35%;
+    --sidebar-ring: 4 80% 42%;
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
@@ -69,24 +69,26 @@
     --popover: 245 20% 12%;
     --popover-foreground: 240 10% 93%;
 
-    --primary: 245 65% 55%;
+    /* Crimson — brighter in dark mode */
+    --primary: 4 78% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 4 75% 52%;
+    /* Navy — slightly lighter in dark mode */
+    --secondary: 245 65% 55%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 245 15% 18%;
     --muted-foreground: 240 10% 60%;
 
-    --accent: 4 75% 52%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 245 25% 22%;
+    --accent-foreground: 240 10% 90%;
 
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 245 15% 20%;
     --input: 245 15% 20%;
-    --ring: 245 65% 55%;
+    --ring: 4 78% 55%;
   }
 }
 
@@ -109,18 +111,19 @@
 @layer components {
   /* ── Brand gradient helpers ────────────────────────────── */
 
-  /* Navy → deeper navy */
+  /* Crimson → deeper crimson */
   .gradient-primary {
-    @apply bg-gradient-to-r from-[hsl(245,70%,35%)] to-[hsl(250,60%,28%)];
+    background: linear-gradient(135deg, hsl(4 80% 42%), hsl(0 75% 36%));
   }
 
-  /* Diagonal: navy → deep crimson (hero / CTA panels) */
+  /* Diagonal: deep navy → crimson (hero / CTA panels) */
   .gradient-hero {
     background: linear-gradient(
       135deg,
-      hsl(245 70% 30%) 0%,
-      hsl(245 65% 40%) 45%,
-      hsl(4 80% 42%)   100%
+      hsl(245 70% 28%) 0%,
+      hsl(245 65% 36%) 35%,
+      hsl(4 80% 40%)   70%,
+      hsl(0 78% 34%)   100%
     );
   }
 

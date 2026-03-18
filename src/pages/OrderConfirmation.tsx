@@ -5,7 +5,7 @@ import { CheckCircle2, ArrowRight, Share2, ShoppingBag, Download, Loader2 } from
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import OrderTrackingTimeline from "@/components/OrderTrackingTimeline";
-import OrderReview from "@/components/OrderReview";
+
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
@@ -397,8 +397,7 @@ const OrderConfirmation = () => {
           </div>
         </motion.div>
 
-        {/* ── Review ── */}
-        <OrderReview orderId={order.id} customerName={order.customerName} />
+
 
         {/* ── Actions ── */}
         <motion.div
