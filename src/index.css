@@ -4,44 +4,54 @@
 
 @layer base {
   :root {
-    --background: 130 20% 98%;
-    --foreground: 150 40% 12%;
+    /* ── Altaf Cash & Carry Brand Palette ──────────────────
+       Primary  : Deep Navy Purple  (the "ALTAF" lettering)
+       Secondary: Crimson Red       (sun rays & "CASH & CARRY")
+       Accent   : Bright White      (outlines & highlights)
+    ─────────────────────────────────────────────────────── */
+
+    --background: 240 20% 97%;
+    --foreground: 240 40% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 150 40% 12%;
+    --card-foreground: 240 40% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 150 30% 10%;
+    --popover-foreground: 240 30% 10%;
 
-    --primary: 130 62% 22%;
+    /* Navy Purple — primary brand colour */
+    --primary: 245 70% 35%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 33 100% 50%;
+    /* Crimson Red — secondary brand colour */
+    --secondary: 4 80% 42%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 120 10% 93%;
-    --muted-foreground: 150 10% 40%;
+    --muted: 240 10% 93%;
+    --muted-foreground: 240 10% 40%;
 
-    --accent: 33 100% 50%;
+    /* Accent = Crimson Red (matches secondary) */
+    --accent: 4 80% 42%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 120 10% 88%;
-    --input: 120 10% 88%;
-    --ring: 130 62% 22%;
+    --border: 240 10% 86%;
+    --input: 240 10% 86%;
+    --ring: 245 70% 35%;
 
     --radius: 0.75rem;
 
+    /* Sidebar */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 130 62% 22%;
+    --sidebar-primary: 245 70% 35%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 120 10% 93%;
-    --sidebar-accent-foreground: 150 30% 10%;
-    --sidebar-border: 120 10% 88%;
-    --sidebar-ring: 130 62% 22%;
+    --sidebar-accent: 240 10% 93%;
+    --sidebar-accent-foreground: 240 30% 10%;
+    --sidebar-border: 240 10% 86%;
+    --sidebar-ring: 245 70% 35%;
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
@@ -50,25 +60,33 @@
   }
 
   .dark {
-    --background: 150 30% 6%;
-    --foreground: 120 10% 93%;
-    --card: 150 20% 10%;
-    --card-foreground: 120 10% 93%;
-    --popover: 150 20% 10%;
-    --popover-foreground: 120 10% 93%;
-    --primary: 130 62% 35%;
+    --background: 245 30% 8%;
+    --foreground: 240 10% 93%;
+
+    --card: 245 20% 12%;
+    --card-foreground: 240 10% 93%;
+
+    --popover: 245 20% 12%;
+    --popover-foreground: 240 10% 93%;
+
+    --primary: 245 65% 55%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 33 100% 50%;
+
+    --secondary: 4 75% 52%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 150 15% 15%;
-    --muted-foreground: 120 10% 60%;
-    --accent: 33 100% 50%;
+
+    --muted: 245 15% 18%;
+    --muted-foreground: 240 10% 60%;
+
+    --accent: 4 75% 52%;
     --accent-foreground: 0 0% 100%;
+
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
-    --border: 150 15% 18%;
-    --input: 150 15% 18%;
-    --ring: 130 62% 35%;
+
+    --border: 245 15% 20%;
+    --input: 245 15% 20%;
+    --ring: 245 65% 55%;
   }
 }
 
@@ -79,28 +97,39 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2322c55e' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    /* Subtle cross / plus pattern in brand navy-purple tint */
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233730a3' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     @apply font-sans tracking-tight;
   }
 }
 
 @layer components {
+  /* ── Brand gradient helpers ────────────────────────────── */
+
+  /* Navy → deeper navy */
   .gradient-primary {
-    @apply bg-gradient-to-r from-primary to-[hsl(140, 50%, 30%)];
+    @apply bg-gradient-to-r from-[hsl(245,70%,35%)] to-[hsl(250,60%,28%)];
   }
 
+  /* Diagonal: navy → deep crimson (hero / CTA panels) */
   .gradient-hero {
-    background: linear-gradient(135deg, hsl(130 62% 22%) 0%, hsl(140 50% 30%) 50%, hsl(33 100% 50%) 100%);
+    background: linear-gradient(
+      135deg,
+      hsl(245 70% 30%) 0%,
+      hsl(245 65% 40%) 45%,
+      hsl(4 80% 42%)   100%
+    );
   }
 
+  /* Crimson accent strip */
+  .gradient-accent {
+    background: linear-gradient(90deg, hsl(4 80% 42%), hsl(0 75% 55%));
+  }
+
+  /* ── Utility classes ───────────────────────────────────── */
   .hover-lift {
     @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
   }
@@ -110,30 +139,25 @@
   }
 }
 
-/* Custom scrollbar */
+/* ── Custom Scrollbar (navy-purple tint) ───────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: hsl(var(--muted));
 }
-
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--primary) / 0.3);
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.5);
+  background: hsl(var(--primary) / 0.6);
 }
 
 /* ============================================================
-   Inline-style fix patch — add to the BOTTOM of src/index.css
-   Replaces all static background-image inline styles with classes
+   Page-specific background images
    ============================================================ */
 
-/* About page */
 .about-hero-bg {
   background-image: url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop');
   background-size: cover;
@@ -144,61 +168,38 @@
   background-size: cover;
   background-position: center;
 }
-
-/* Index page - CTA section (already defined as .cta-bg-image, alias kept) */
 .cta-bg-image {
   background-image: url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop');
   background-size: cover;
   background-position: center;
 }
-
-/* Index page - Hero background */
 .hero-bg-image {
   background-image: url('https://images.unsplash.com/photo-1542838132-92c53300491e?w=1920&q=80');
   background-size: cover;
   background-position: center;
 }
-
-/* Contact page - Map or decorative background */
 .contact-map-bg {
   background-image: url('https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1920&auto=format&fit=crop');
   background-size: cover;
   background-position: center;
 }
 
-/* ── Dynamic category/product background images ──────────────
-   These CANNOT be moved to static CSS (they depend on runtime
-   data). The correct fix for the linter is to pass them as a
-   CSS custom property instead of a backgroundImage style prop.
-
-   In your JSX, change:
-     style={{ backgroundImage: `url(${cat.image})` }}
-   to:
-     style={{ '--cat-bg': `url(${cat.image})` } as React.CSSProperties}
-
-   Then add this class to the element: class="dynamic-bg"       */
+/* Runtime data-driven backgrounds (set --cat-bg via inline style) */
 .dynamic-bg {
   background-image: var(--cat-bg);
   background-size: cover;
   background-position: center;
 }
-/* ── Analytics chart helpers ────────────────────────────
-   Add these to the BOTTOM of src/index.css
-   Replaces inline background styles with CSS custom props  */
 
-/* Colored dot used in chart legends and tooltips */
-.chart-dot  { background: var(--chart-dot-color,  hsl(var(--primary))); }
-
-/* Colored progress bar fill in status chart */
-.chart-bar  { background: var(--chart-bar-color,  hsl(var(--primary))); }
-
+/* ── Chart helpers ─────────────────────────────────────────── */
+.chart-dot { background: var(--chart-dot-color, hsl(var(--primary))); }
+.chart-bar { background: var(--chart-bar-color, hsl(var(--primary))); }
 
 /* ============================================================
-   AdminLayout — background blob classes
-   Add to the BOTTOM of src/index.css
+   Admin Layout — animated background blobs
+   (navy-purple + crimson brand tints)
    ============================================================ */
 
-/* Container — fixed, full-screen, pointer-events off */
 .admin-bg-blobs {
   pointer-events: none;
   position: fixed;
@@ -207,59 +208,54 @@
   z-index: 0;
 }
 
-/* Shared blob base */
 .admin-blob {
   position: absolute;
   border-radius: 9999px;
   animation: adminBlobDrift 14s ease-in-out infinite alternate;
 }
 
-/* Top-left — primary tint */
+/* Top-left — navy purple tint */
 .admin-blob--primary-tl {
   width: 520px;
   height: 520px;
   top: -160px;
   left: -160px;
-  background: hsl(var(--primary) / 0.06);
+  background: hsl(var(--primary) / 0.07);
   filter: blur(100px);
   animation-delay: 0s;
 }
 
-/* Bottom-right — secondary tint */
+/* Bottom-right — crimson red tint */
 .admin-blob--secondary-br {
   width: 420px;
   height: 420px;
   bottom: -140px;
   right: -140px;
-  background: hsl(var(--secondary) / 0.05);
+  background: hsl(var(--secondary) / 0.06);
   filter: blur(90px);
   animation-delay: -5s;
 }
 
-/* Centre — very subtle primary */
+/* Centre — very subtle navy */
 .admin-blob--primary-center {
   width: 280px;
   height: 280px;
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: hsl(var(--primary) / 0.03);
+  background: hsl(var(--primary) / 0.04);
   filter: blur(80px);
   animation-delay: -9s;
-}
-
-/* Gentle drift keyframe */
-@keyframes adminBlobDrift {
-  0%   { transform: translate(0,  0)  scale(1);    }
-  33%  { transform: translate(24px, -18px) scale(1.06); }
-  66%  { transform: translate(-14px, 20px) scale(0.95); }
-  100% { transform: translate(10px, -10px) scale(1.03); }
-}
-
-/* Override for center blob (has existing transform) */
-.admin-blob--primary-center {
   animation-name: adminBlobDriftCenter;
 }
+
+@keyframes adminBlobDrift {
+  0%   { transform: translate(0, 0)           scale(1);    }
+  33%  { transform: translate(24px, -18px)    scale(1.06); }
+  66%  { transform: translate(-14px,  20px)   scale(0.95); }
+  100% { transform: translate(10px, -10px)    scale(1.03); }
+}
+
 @keyframes adminBlobDriftCenter {
   0%   { transform: translate(-50%, -50%) scale(1);    }
   50%  { transform: translate(-50%, -58%) scale(1.1);  }
