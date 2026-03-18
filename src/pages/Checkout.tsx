@@ -605,6 +605,13 @@ const Checkout = () => {
           <Button size="lg" className="rounded-full px-6" onClick={() => navigate("/login", { state: { from: location } })}>Sign In</Button>
           <Button size="lg" variant="outline" className="rounded-full px-6" onClick={() => navigate("/signup", { state: { from: location } })}>Create Account</Button>
         </div>
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto group"
+        >
+          <ChevronRight className="h-4 w-4 rotate-180 group-hover:-translate-x-0.5 transition-transform" />
+          Go Back
+        </button>
       </motion.div>
     </div>
   );

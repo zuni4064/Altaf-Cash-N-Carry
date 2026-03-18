@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Shield, CheckCircle2, Circle } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, Shield, CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
 
 const PERKS = [
@@ -121,6 +121,15 @@ const Signup = () => {
           <div className="md:hidden text-center mb-6">
             <Link to="/" className="font-display text-xl font-bold text-primary">Altaf Cash &amp; Carry</Link>
           </div>
+
+          {/* Go Back button */}
+          <button
+            onClick={() => navigate(location.state?.from?.pathname || -1 as any)}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5 group"
+          >
+            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+            Go Back
+          </button>
 
           <div className="mb-6">
             <h1 className="text-2xl font-display font-extrabold mb-1">Create Account</h1>
