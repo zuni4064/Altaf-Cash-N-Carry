@@ -28,12 +28,12 @@ const ScrollToTopButton = () => {
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           className="fixed bottom-6 left-6 z-50 h-14 w-14 rounded-full shadow-xl flex items-center justify-center"
           style={{
-            background: "linear-gradient(135deg,#d97706,#b45309)",
-            boxShadow: "0 4px 20px rgba(180,83,9,0.4)",
+            background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+            boxShadow: "0 4px 20px rgba(185,28,28,0.45)",
           }}
           aria-label="Scroll to top"
         >
-          <ArrowUp className="h-5 w-5 text-amber-50" />
+          <ArrowUp className="h-5 w-5 text-white" />
         </motion.button>
       )}
     </AnimatePresence>
