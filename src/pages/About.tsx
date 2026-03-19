@@ -163,7 +163,7 @@ const About = () => {
 
           <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ type: "spring", stiffness: 100 }} className="relative">
             <motion.img
-              src="https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1000&auto=format&fit=crop"
+              src="cover.jpeg"
               alt="Inside Altaf Cash and Carry"
               className="rounded-3xl shadow-2xl border border-border w-full"
               whileHover={{ scale: 1.02 }}

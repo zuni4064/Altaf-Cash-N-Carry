@@ -104,7 +104,7 @@ const Footer = () => {
               className="inline-block mb-5"
             />
             <p className="text-sm text-primary-foreground/70 leading-relaxed mb-5 max-w-xs">
-              Your one-stop shop for fresh quality groceries and household essentials in Lahore — serving families since 1995.
+              Your one-stop shop for fresh quality groceries and household essentials in Lahore — serving families since 2019.
             </p>
             <div className="flex gap-3">
               {SOCIALS.map(s => (
