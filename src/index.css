@@ -5,90 +5,97 @@
 @layer base {
   :root {
     /* ── Altaf Cash & Carry Brand Palette ──────────────────
-       Primary  : Crimson Red   (sun + action elements — CTAs, prices, links)
-       Secondary: Deep Navy     ("ALTAF" wordmark — structure, nav, overlays)
-       Accent   : Bright White  (outlines & highlights)
+       Primary  : Deep Crimson Red  — CTAs, prices, active states
+       Secondary: Rich Navy Blue    — nav, structure, overlays
+       Accent   : Warm White        — highlights, card surfaces
+
+       Color logic pulled directly from the brand logo:
+         Navy   → HSL(222 60% 22%)   (dark, ink-like, no purple bleed)
+         Red    → HSL(358 62% 36%)   (rich crimson, not fire-engine bright)
     ─────────────────────────────────────────────────────── */
 
-    --background: 240 20% 97%;
-    --foreground: 240 40% 12%;
+    /* Page surface — very slightly warm off-white, easier on eyes */
+    --background: 210 20% 96%;
+    --foreground: 222 40% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 40% 12%;
+    --card-foreground: 222 35% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 30% 10%;
+    --popover-foreground: 222 35% 12%;
 
-    /* Crimson Red — PRIMARY action colour (buttons, prices, active states) */
-    --primary: 4 80% 42%;
+    /* ── PRIMARY: Deep Crimson Red ── */
+    --primary: 358 62% 36%;
     --primary-foreground: 0 0% 100%;
 
-    /* Deep Navy — SECONDARY structural colour */
-    --secondary: 245 70% 35%;
+    /* ── SECONDARY: Rich Navy Blue ── */
+    --secondary: 222 60% 22%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 10% 93%;
-    --muted-foreground: 240 10% 40%;
+    /* Muted — very light steel blue-gray */
+    --muted: 215 18% 91%;
+    --muted-foreground: 215 15% 42%;
 
-    /* Accent = Navy (hover tint on ghost buttons, mobile active bg) */
-    --accent: 245 60% 92%;
-    --accent-foreground: 245 70% 25%;
+    /* Accent — pale navy tint for ghost / hover surfaces */
+    --accent: 222 45% 93%;
+    --accent-foreground: 222 60% 20%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 68% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 10% 86%;
-    --input: 240 10% 86%;
-    --ring: 4 80% 42%;
+    --border: 215 18% 84%;
+    --input: 215 18% 84%;
+    --ring: 358 62% 36%;
 
     --radius: 0.75rem;
 
-    /* Sidebar */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 4 80% 42%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 10% 93%;
-    --sidebar-accent-foreground: 240 30% 10%;
-    --sidebar-border: 240 10% 86%;
-    --sidebar-ring: 4 80% 42%;
+    /* ── Sidebar ── */
+    --sidebar-background: 222 55% 18%;
+    --sidebar-foreground: 210 25% 88%;
+    --sidebar-primary: 358 62% 44%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 50% 26%;
+    --sidebar-accent-foreground: 210 25% 94%;
+    --sidebar-border: 222 40% 28%;
+    --sidebar-ring: 358 62% 44%;
 
-    --success: 142 76% 36%;
+    /* ── Status ── */
+    --success: 145 63% 32%;
     --success-foreground: 0 0% 100%;
-    --warning: 45 93% 47%;
+    --warning: 38 92% 44%;
     --warning-foreground: 0 0% 10%;
   }
 
   .dark {
-    --background: 245 30% 8%;
-    --foreground: 240 10% 93%;
+    --background: 222 45% 10%;
+    --foreground: 210 18% 90%;
 
-    --card: 245 20% 12%;
-    --card-foreground: 240 10% 93%;
+    --card: 222 40% 14%;
+    --card-foreground: 210 18% 90%;
 
-    --popover: 245 20% 12%;
-    --popover-foreground: 240 10% 93%;
+    --popover: 222 40% 14%;
+    --popover-foreground: 210 18% 90%;
 
-    /* Crimson — brighter in dark mode */
-    --primary: 4 78% 55%;
+    /* Crimson — slightly lifted for readability on dark */
+    --primary: 358 60% 50%;
     --primary-foreground: 0 0% 100%;
 
-    /* Navy — slightly lighter in dark mode */
-    --secondary: 245 65% 55%;
+    /* Navy — mid-tone in dark mode so it reads as a color, not a void */
+    --secondary: 222 55% 45%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 245 15% 18%;
-    --muted-foreground: 240 10% 60%;
+    --muted: 222 30% 20%;
+    --muted-foreground: 215 15% 58%;
 
-    --accent: 245 25% 22%;
-    --accent-foreground: 240 10% 90%;
+    --accent: 222 35% 24%;
+    --accent-foreground: 210 20% 88%;
 
-    --destructive: 0 62% 30%;
+    --destructive: 358 55% 38%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 245 15% 20%;
-    --input: 245 15% 20%;
-    --ring: 4 78% 55%;
+    --border: 222 30% 22%;
+    --input: 222 30% 22%;
+    --ring: 358 60% 50%;
   }
 }
 
@@ -99,8 +106,12 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    /* Subtle cross / plus pattern in brand navy-purple tint */
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233730a3' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    /* Very subtle grid dot pattern — navy at 2% opacity, barely perceptible */
+    background-image: radial-gradient(
+      hsl(222 60% 22% / 0.04) 1px,
+      transparent 1px
+    );
+    background-size: 28px 28px;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -109,30 +120,47 @@
 }
 
 @layer components {
-  /* ── Brand gradient helpers ────────────────────────────── */
+  /* ── Brand gradient helpers ─────────────────────────────── */
 
-  /* Crimson → deeper crimson */
+  /* Deep crimson → darker crimson (buttons, badges) */
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(4 80% 42%), hsl(0 75% 36%));
-  }
-
-  /* Diagonal: deep navy → crimson (hero / CTA panels) */
-  .gradient-hero {
     background: linear-gradient(
       135deg,
-      hsl(245 70% 28%) 0%,
-      hsl(245 65% 36%) 35%,
-      hsl(4 80% 40%)   70%,
-      hsl(0 78% 34%)   100%
+      hsl(358 62% 36%),
+      hsl(352 58% 28%)
     );
   }
 
-  /* Crimson accent strip */
-  .gradient-accent {
-    background: linear-gradient(90deg, hsl(4 80% 42%), hsl(0 75% 55%));
+  /* Navy → Crimson diagonal — hero / CTA panels */
+  .gradient-hero {
+    background: linear-gradient(
+      135deg,
+      hsl(222 62% 18%)  0%,
+      hsl(222 58% 26%)  40%,
+      hsl(358 60% 34%)  75%,
+      hsl(352 58% 28%) 100%
+    );
   }
 
-  /* ── Utility classes ───────────────────────────────────── */
+  /* Pure navy — sidebar, topbar, overlays */
+  .gradient-navy {
+    background: linear-gradient(
+      180deg,
+      hsl(222 62% 20%),
+      hsl(222 55% 16%)
+    );
+  }
+
+  /* Warm crimson strip — sale banners, notification bars */
+  .gradient-accent {
+    background: linear-gradient(
+      90deg,
+      hsl(358 62% 36%),
+      hsl(358 56% 44%)
+    );
+  }
+
+  /* ── Utility ── */
   .hover-lift {
     @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
   }
@@ -140,22 +168,30 @@
   .glass {
     @apply bg-card/80 backdrop-blur-md;
   }
+
+  /* Navy card variant — used in admin widgets, stat panels */
+  .card-navy {
+    background: hsl(222 58% 20%);
+    color: hsl(210 20% 90%);
+    border: 1px solid hsl(222 40% 30%);
+  }
+
+  /* Crimson pill — price tags, discount badges */
+  .badge-price {
+    background: hsl(358 62% 36%);
+    color: #fff;
+    @apply text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
 }
 
-/* ── Custom Scrollbar (navy-purple tint) ───────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-}
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: hsl(var(--muted)); }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.3);
+  background: hsl(var(--secondary) / 0.35);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.6);
-}
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--secondary) / 0.65); }
 
 /* ============================================================
    Page-specific background images
@@ -187,20 +223,20 @@
   background-position: center;
 }
 
-/* Runtime data-driven backgrounds (set --cat-bg via inline style) */
+/* Runtime data-driven backgrounds */
 .dynamic-bg {
   background-image: var(--cat-bg);
   background-size: cover;
   background-position: center;
 }
 
-/* ── Chart helpers ─────────────────────────────────────────── */
+/* ── Chart helpers ── */
 .chart-dot { background: var(--chart-dot-color, hsl(var(--primary))); }
 .chart-bar { background: var(--chart-bar-color, hsl(var(--primary))); }
 
 /* ============================================================
    Admin Layout — animated background blobs
-   (navy-purple + crimson brand tints)
+   (navy-blue + crimson brand tints)
    ============================================================ */
 
 .admin-bg-blobs {
@@ -217,24 +253,24 @@
   animation: adminBlobDrift 14s ease-in-out infinite alternate;
 }
 
-/* Top-left — navy purple tint */
+/* Top-left — navy tint */
 .admin-blob--primary-tl {
   width: 520px;
   height: 520px;
   top: -160px;
   left: -160px;
-  background: hsl(var(--primary) / 0.07);
+  background: hsl(222 60% 22% / 0.08);
   filter: blur(100px);
   animation-delay: 0s;
 }
 
-/* Bottom-right — crimson red tint */
+/* Bottom-right — crimson tint */
 .admin-blob--secondary-br {
   width: 420px;
   height: 420px;
   bottom: -140px;
   right: -140px;
-  background: hsl(var(--secondary) / 0.06);
+  background: hsl(358 62% 36% / 0.07);
   filter: blur(90px);
   animation-delay: -5s;
 }
@@ -246,7 +282,7 @@
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: hsl(var(--primary) / 0.04);
+  background: hsl(222 60% 22% / 0.04);
   filter: blur(80px);
   animation-delay: -9s;
   animation-name: adminBlobDriftCenter;

@@ -1,11 +1,8 @@
 import HeroSection from "@/components/HeroSection";
-
 import ProductCard from "@/components/ProductCard";
 import { useCart } from "@/context/CartContext";
 import { Link } from "react-router-dom";
-import {
-  motion, useScroll, useTransform, useSpring, useInView,
-} from "framer-motion";
+import { motion, useScroll, useTransform, useSpring, useInView } from "framer-motion";
 import {
   ArrowRight, Clock, Shield, ShoppingBag,
   ChevronLeft, ChevronRight, Sprout, Sun, Wheat, Leaf,
@@ -16,26 +13,30 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 
-// ─── Brand Design Tokens ──────────────────────────────────────────
-// 60 % → warm-white surfaces (from CSS vars — backgrounds, cards)
-// 30 % → Deep Navy Purple
-// 10 % → Crimson Red (accent, CTAs, highlights)
-// ─────────────────────────────────────────────────────────────────
+/* ─── Brand Design Tokens ─────────────────────────────────────────
+   ALL navy values derived from footer: hsl(218 58% 20%)
+
+   navyDeep   #0D1C36  hsl(218 62% 13%)  darkest overlays
+   navyCore   #152B51  hsl(218 58% 20%)  footer / navbar exact
+   navyMid    #1F3A6B  hsl(218 55% 27%)
+   navyBright #2C4F8C  hsl(218 52% 36%)
+   navyLight  #3D67AE  hsl(218 48% 46%)
+   navyPale   #8DAEE2  hsl(218 60% 72%)  light text on dark bg
+
+   Crimson untouched — only used for accents, CTAs, badges.
+────────────────────────────────────────────────────────────────── */
 const B = {
-  // Navy family
-  navyDeep:   "#1e1b6e",
-  navyCore:   "#2d2a8e",
-  navyBright: "#3730a3",
-  navyLight:  "#4338ca",
-  // Crimson family
-  crimsonDeep:"#991b1b",
-  crimsonCore:"#b91c1c",
+  navyDeep:    "#0D1C36",
+  navyCore:    "#152B51",
+  navyMid:     "#1F3A6B",
+  navyBright:  "#2C4F8C",
+  navyLight:   "#3D67AE",
+  navyPale:    "#8DAEE2",
+  crimsonDeep: "#991b1b",
+  crimsonCore: "#b91c1c",
   crimsonVivid:"#dc2626",
   crimsonSoft: "#f87171",
-  // Neutrals (warm — no blue bleed)
-  charcoal:   "#1c1917",
-  warmGray:   "#78716c",
-  offWhite:   "#fafaf9",
+  warmGray:    "#78716c",
 };
 
 const FONT = "'Plus Jakarta Sans', sans-serif";
@@ -46,7 +47,7 @@ function useReveal(amount = 0.15) {
   return { ref, inView };
 }
 
-// ─── Divider: navy → crimson wave ────────────────────────────────
+// ─── Divider: navy wave ───────────────────────────────────────────
 const OrganicDivider = () => {
   const { ref, inView } = useReveal(0.5);
   return (
@@ -67,8 +68,8 @@ const OrganicDivider = () => {
         <defs>
           <linearGradient id="brandDiv" x1="0" y1="0" x2="800" y2="0">
             <stop offset="0%"   stopColor="transparent" />
-            <stop offset="20%"  stopColor={B.navyBright}  stopOpacity="0.4" />
-            <stop offset="50%"  stopColor={B.navyLight}   stopOpacity="0.55" />
+            <stop offset="20%"  stopColor={B.navyBright} stopOpacity="0.4" />
+            <stop offset="50%"  stopColor={B.navyLight}  stopOpacity="0.55" />
             <stop offset="75%"  stopColor={B.crimsonCore} stopOpacity="0.4" />
             <stop offset="100%" stopColor="transparent" />
           </linearGradient>
@@ -78,7 +79,7 @@ const OrganicDivider = () => {
   );
 };
 
-// ─── Section label: crimson dashes + text ────────────────────────
+// ─── Section label ────────────────────────────────────────────────
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <span
     className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.28em] uppercase mb-3"
@@ -90,7 +91,7 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   </span>
 );
 
-// ─── Section heading: navy title + navy→crimson underline ─────────
+// ─── Section heading ──────────────────────────────────────────────
 const SectionHeading = ({
   label, title, subtitle,
 }: {
@@ -114,21 +115,17 @@ const SectionHeading = ({
           fontSize: "clamp(1.7rem,3.5vw,2.8rem)",
           fontWeight: 800,
           letterSpacing: "-0.02em",
-          // Navy heading — matches CSS var --primary
-          color: B.navyDeep,
+          color: B.navyCore,
         }}
       >
         {title}
       </h2>
       {subtitle && (
-        <p
-          className="mt-3 text-sm leading-relaxed max-w-md font-normal text-muted-foreground"
-          style={{ fontFamily: FONT }}
-        >
+        <p className="mt-3 text-sm leading-relaxed max-w-md font-normal text-muted-foreground" style={{ fontFamily: FONT }}>
           {subtitle}
         </p>
       )}
-      {/* Crimson→Navy animated underline bar */}
+      {/* Navy → crimson animated underline */}
       <motion.div
         className="mt-4 flex items-center gap-1.5"
         initial={{ opacity: 0, x: -16 }}
@@ -138,52 +135,27 @@ const SectionHeading = ({
         <motion.div
           className="h-[2px] rounded-full"
           style={{
-            background: `linear-gradient(90deg, ${B.crimsonVivid}, ${B.crimsonCore}, ${B.navyBright}, transparent)`,
+            background: `linear-gradient(90deg, ${B.navyBright}, ${B.navyLight}, ${B.crimsonCore}, transparent)`,
             width: 52,
           }}
           initial={{ scaleX: 0, originX: 0 }}
           animate={inView ? { scaleX: 1 } : {}}
           transition={{ duration: 0.8, delay: 0.2 }}
         />
-        <div
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ backgroundColor: B.crimsonVivid }}
-        />
+        <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: B.crimsonVivid }} />
       </motion.div>
     </motion.div>
   );
 };
 
-// ─── Promise cards ───────────────────────────────────────────────
+// ─── Promise cards ────────────────────────────────────────────────
 const PromiseSection = () => {
   const { ref, inView } = useReveal(0.1);
-
-  // Card colors: all drawn from brand palette — 2 navy, 2 crimson
   const cards = [
-    {
-      icon: Sprout,
-      title: "Grown with Care",
-      body: "Sourced from local farms. Taste the freshness in every bite, every day.",
-      color: B.navyBright,   // navy
-    },
-    {
-      icon: Clock,
-      title: "Here in 30 Minutes",
-      body: "Order placed. Confirmed. At your door in under 30 minutes — always.",
-      color: B.crimsonCore,  // crimson
-    },
-    {
-      icon: Sun,
-      title: "Best Prices in Lahore",
-      body: "Direct from suppliers. No middleman. Every saving passed straight to you.",
-      color: B.navyLight,    // navy (lighter)
-    },
-    {
-      icon: Shield,
-      title: "7 Years of Trust",
-      body: "Since 2019, thousands of Lahore families trust us for their daily needs.",
-      color: B.crimsonDeep,  // crimson (deeper)
-    },
+    { icon: Sprout, title: "Grown with Care",      body: "Sourced from local farms. Taste the freshness in every bite, every day.", color: B.navyBright  },
+    { icon: Clock,  title: "Here in 30 Minutes",   body: "Order placed. Confirmed. At your door in under 30 minutes — always.",    color: B.crimsonCore },
+    { icon: Sun,    title: "Best Prices in Lahore", body: "Direct from suppliers. No middleman. Every saving passed straight to you.", color: B.navyLight  },
+    { icon: Shield, title: "7 Years of Trust",     body: "Since 2019, thousands of Lahore families trust us for their daily needs.", color: B.crimsonDeep },
   ];
 
   return (
@@ -207,12 +179,10 @@ const PromiseSection = () => {
                 className="group relative rounded-2xl p-7 border overflow-hidden transition-all duration-400 hover:shadow-xl bg-card"
                 style={{ borderColor: `${c.color}28`, borderRadius: "1rem" }}
               >
-                {/* Hover radial glow */}
                 <div
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl"
                   style={{ background: `radial-gradient(ellipse 90% 60% at 50% 110%, ${c.color}1a, transparent)` }}
                 />
-                {/* Top accent bar */}
                 <div
                   className="absolute top-0 left-0 right-0 h-[3px] rounded-t-2xl"
                   style={{ background: `linear-gradient(90deg, ${c.color}70, ${c.color}, ${c.color}70)` }}
@@ -224,12 +194,8 @@ const PromiseSection = () => {
                   >
                     <c.icon className="h-6 w-6" style={{ color: c.color }} />
                   </div>
-                  <h3 className="text-sm font-bold mb-2 text-foreground" style={{ fontFamily: FONT }}>
-                    {c.title}
-                  </h3>
-                  <p className="text-xs leading-relaxed text-muted-foreground" style={{ fontFamily: FONT }}>
-                    {c.body}
-                  </p>
+                  <h3 className="text-sm font-bold mb-2 text-foreground" style={{ fontFamily: FONT }}>{c.title}</h3>
+                  <p className="text-xs leading-relaxed text-muted-foreground" style={{ fontFamily: FONT }}>{c.body}</p>
                 </div>
               </div>
             </motion.div>
@@ -258,14 +224,12 @@ const CategoryStrip = ({ categories }: { categories: any[] }) => {
               className="group flex items-center gap-1.5 text-sm font-semibold transition-colors"
               style={{ color: B.crimsonCore, fontFamily: FONT }}
             >
-              View All{" "}
-              <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+              View All <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </motion.div>
         </div>
       </div>
       <div className="relative">
-        {/* Edge fade — matches section bg */}
         <div className="absolute left-0 top-0 bottom-0 w-20 z-10 pointer-events-none bg-gradient-to-r from-muted/30 dark:from-muted/10 to-transparent" />
         <div className="absolute right-0 top-0 bottom-0 w-20 z-10 pointer-events-none bg-gradient-to-l from-muted/30 dark:from-muted/10 to-transparent" />
         <div className="flex gap-4 px-8 overflow-x-auto pb-3" style={{ scrollbarWidth: "none" }}>
@@ -284,35 +248,24 @@ const CategoryStrip = ({ categories }: { categories: any[] }) => {
                 <Link
                   to={`/shop?category=${cat.id}`}
                   className="group relative block w-full h-full overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-400"
-                  style={{
-                    borderRadius: "1rem",
-                    // Navy-tinted card border — brand coherence
-                    border: `1.5px solid ${B.navyBright}20`,
-                  }}
+                  style={{ borderRadius: "1rem", border: `1.5px solid ${B.navyBright}20` }}
                 >
                   <div
                     className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
                     style={{ backgroundImage: `url(${cat.image})` }}
                   />
-                  {/* Deep navy overlay (replaces old brown) */}
+                  {/* Footer navy overlay */}
                   <div
                     className="absolute inset-0"
-                    style={{
-                      background: `linear-gradient(to top, ${B.navyDeep}cc 0%, ${B.navyDeep}14 60%, transparent 100%)`,
-                    }}
+                    style={{ background: `linear-gradient(to top, ${B.navyCore}cc 0%, ${B.navyCore}14 60%, transparent 100%)` }}
                   />
                   {/* Hover crimson warmth */}
                   <div
                     className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                    style={{
-                      background: `linear-gradient(to top, ${B.crimsonDeep}40, transparent)`,
-                    }}
+                    style={{ background: `linear-gradient(to top, ${B.crimsonDeep}40, transparent)` }}
                   />
                   <div className="absolute bottom-0 inset-x-0 p-3 z-10">
-                    <p
-                      className="text-[11px] font-bold text-white leading-tight drop-shadow-md"
-                      style={{ fontFamily: FONT }}
-                    >
+                    <p className="text-[11px] font-bold text-white leading-tight drop-shadow-md" style={{ fontFamily: FONT }}>
                       {cat.name}
                     </p>
                     <div
@@ -334,11 +287,7 @@ const CategoryStrip = ({ categories }: { categories: any[] }) => {
 
 // ─── Generic Product Carousel ─────────────────────────────────────
 const ProductCarousel = ({
-  products,
-  label,
-  title,
-  subtitle,
-  viewAllLink,
+  products, label, title, subtitle, viewAllLink,
   accentColor = B.navyBright,
   sectionClassName = "bg-background",
 }: {
@@ -364,10 +313,8 @@ const ProductCarousel = ({
           <div className="hidden md:flex items-center gap-2">
             {[prev, next].map((fn, i) => (
               <motion.button
-                key={i}
-                onClick={fn}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.93 }}
+                key={i} onClick={fn}
+                whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.93 }}
                 className="h-9 w-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground transition-all"
               >
                 {i === 0 ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -379,8 +326,7 @@ const ProductCarousel = ({
                 className="group flex items-center gap-1.5 text-sm font-semibold transition-colors ml-2"
                 style={{ color: accentColor, fontFamily: FONT }}
               >
-                View All{" "}
-                <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+                View All <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
               </Link>
             )}
           </div>
@@ -403,7 +349,7 @@ const ProductCarousel = ({
   );
 };
 
-// ─── Hot Deals — navy panel with crimson accents ──────────────────
+// ─── Hot Deals ────────────────────────────────────────────────────
 const HotDealsSection = ({ products }: { products: any[] }) => {
   const { ref, inView } = useReveal(0.1);
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, align: "start", dragFree: true });
@@ -412,11 +358,8 @@ const HotDealsSection = ({ products }: { products: any[] }) => {
   if (!products.length) return null;
 
   return (
-    <section
-      ref={ref}
-      className="relative py-20 overflow-hidden bg-muted/30 dark:bg-muted/10"
-    >
-      {/* Diagonal stripe texture in crimson tint */}
+    <section ref={ref} className="relative py-20 overflow-hidden bg-muted/30 dark:bg-muted/10">
+      {/* Diagonal stripe texture — crimson tint */}
       <div
         className="absolute inset-0 opacity-[0.025]"
         style={{
@@ -424,39 +367,28 @@ const HotDealsSection = ({ products }: { products: any[] }) => {
           backgroundSize: "14px 14px",
         }}
       />
-      {/* Top border line — navy → crimson */}
+      {/* Top border — navy to crimson */}
       <div
         className="absolute top-0 inset-x-0 h-[2px]"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${B.navyBright}60, ${B.crimsonCore}60, transparent)`,
-        }}
+        style={{ background: `linear-gradient(90deg, transparent, ${B.navyBright}60, ${B.crimsonCore}60, transparent)` }}
       />
-      {/* Bottom border line */}
+      {/* Bottom border */}
       <div
         className="absolute bottom-0 inset-x-0 h-[2px]"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${B.navyBright}60, ${B.crimsonCore}60, transparent)`,
-        }}
+        style={{ background: `linear-gradient(90deg, transparent, ${B.navyBright}60, ${B.crimsonCore}60, transparent)` }}
       />
-      {/* Decorative Wheat icon — navy tint */}
       <div className="absolute right-8 top-8 opacity-[0.05] pointer-events-none select-none">
         <Wheat className="h-40 w-40" style={{ color: B.navyBright }} />
       </div>
 
       <div className="container relative z-10 mb-10">
         <div className="flex items-end justify-between">
-          <SectionHeading
-            label="Limited Time"
-            title="Hot Deals"
-            subtitle="Prices slashed on your favourite items."
-          />
+          <SectionHeading label="Limited Time" title="Hot Deals" subtitle="Prices slashed on your favourite items." />
           <div className="hidden md:flex items-center gap-2">
             {[prev, next].map((fn, i) => (
               <motion.button
-                key={i}
-                onClick={fn}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.93 }}
+                key={i} onClick={fn}
+                whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.93 }}
                 className="h-9 w-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground transition-all"
               >
                 {i === 0 ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -467,8 +399,7 @@ const HotDealsSection = ({ products }: { products: any[] }) => {
               className="group flex items-center gap-1.5 text-sm font-semibold transition-colors ml-2"
               style={{ color: B.crimsonCore, fontFamily: FONT }}
             >
-              All Deals{" "}
-              <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+              All Deals <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
         </div>
@@ -492,48 +423,13 @@ const HotDealsSection = ({ products }: { products: any[] }) => {
 };
 
 // ─── Promo Carousel banners ───────────────────────────────────────
-// Each banner's accent is now pulled from the brand navy/crimson system
+// Accents alternate between navy and crimson — both from brand palette
 const banners = [
-  {
-    id: 1,
-    tag: "Daily Harvest",
-    title: "Farm Fresh Organic",
-    sub: "Harvested Today",
-    accent: B.navyBright,   // navy
-    img: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=1920",
-  },
-  {
-    id: 2,
-    tag: "Express",
-    title: "30-Min Delivery",
-    sub: "Straight to Your Door",
-    accent: B.crimsonCore,  // crimson
-    img: "https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=1920",
-  },
-  {
-    id: 3,
-    tag: "Baked Fresh",
-    title: "Artisan Bakery",
-    sub: "Made Every Morning",
-    accent: B.navyLight,    // navy lighter
-    img: "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?q=80&w=1920",
-  },
-  {
-    id: 4,
-    tag: "Up to 50% Off",
-    title: "Weekly Specials",
-    sub: "Limited Time Deals",
-    accent: B.crimsonVivid, // crimson vivid
-    img: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?q=80&w=1920",
-  },
-  {
-    id: 5,
-    tag: "Home Essentials",
-    title: "Everything You Need",
-    sub: "Stock Up & Save",
-    accent: B.navyDeep,     // navy deep
-    img: "https://images.unsplash.com/photo-1628088062854-d1870b4553da?q=80&w=1920",
-  },
+  { id: 1, tag: "Daily Harvest",   title: "Farm Fresh Organic",  sub: "Harvested Today",        accent: B.navyBright,   img: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=1920" },
+  { id: 2, tag: "Express",         title: "30-Min Delivery",     sub: "Straight to Your Door",  accent: B.crimsonCore,  img: "https://images.unsplash.com/photo-1616401784845-180882ba9ba8?q=80&w=1920" },
+  { id: 3, tag: "Baked Fresh",     title: "Artisan Bakery",      sub: "Made Every Morning",     accent: B.navyLight,    img: "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?q=80&w=1920" },
+  { id: 4, tag: "Up to 50% Off",   title: "Weekly Specials",     sub: "Limited Time Deals",     accent: B.crimsonVivid, img: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?q=80&w=1920" },
+  { id: 5, tag: "Home Essentials", title: "Everything You Need", sub: "Stock Up & Save",        accent: B.navyMid,      img: "https://images.unsplash.com/photo-1628088062854-d1870b4553da?q=80&w=1920" },
 ];
 const allBanners = [...banners, ...banners.map((b) => ({ ...b, id: b.id + 10 }))];
 
@@ -559,10 +455,8 @@ const PromoCarousel = () => {
           <div className="hidden md:flex items-center gap-2">
             {[prev, next].map((fn, i) => (
               <motion.button
-                key={i}
-                onClick={fn}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.93 }}
+                key={i} onClick={fn}
+                whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.93 }}
                 className="h-9 w-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground transition-all"
               >
                 {i === 0 ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -587,28 +481,21 @@ const PromoCarousel = () => {
                 <motion.div
                   whileHover={{ scale: 1.02 }}
                   className="group relative h-[260px] md:h-[320px] overflow-hidden shadow-xl hover:shadow-2xl transition-shadow duration-500"
-                  style={{
-                    borderRadius: "1.5rem",
-                    border: `1.5px solid ${B.navyBright}22`,
-                  }}
+                  style={{ borderRadius: "1.5rem", border: `1.5px solid ${B.navyBright}22` }}
                 >
                   <div
                     className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                     style={{ backgroundImage: `url(${b.img})` }}
                   />
-                  {/* Deep navy overlay — consistent with hero */}
+                  {/* Footer navy overlay */}
                   <div
                     className="absolute inset-0"
-                    style={{
-                      background: `linear-gradient(to top, ${B.navyDeep}e0 0%, ${B.navyDeep}40 60%, transparent 100%)`,
-                    }}
+                    style={{ background: `linear-gradient(to top, ${B.navyDeep}e0 0%, ${B.navyDeep}40 60%, transparent 100%)` }}
                   />
-                  {/* Top accent bar in banner's brand color */}
+                  {/* Top accent bar */}
                   <div
                     className="absolute top-0 inset-x-0 h-[3px]"
-                    style={{
-                      background: `linear-gradient(90deg, ${b.accent}, ${b.accent}80, transparent)`,
-                    }}
+                    style={{ background: `linear-gradient(90deg, ${b.accent}, ${b.accent}80, transparent)` }}
                   />
                   <div className="absolute inset-0 flex flex-col justify-end p-7 z-10">
                     <span
@@ -622,16 +509,10 @@ const PromoCarousel = () => {
                     >
                       {b.tag}
                     </span>
-                    <h3
-                      className="text-2xl md:text-3xl font-bold mb-1"
-                      style={{ fontFamily: FONT, color: "#ffffff" }}
-                    >
+                    <h3 className="text-2xl md:text-3xl font-bold mb-1" style={{ fontFamily: FONT, color: "#ffffff" }}>
                       {b.title}
                     </h3>
-                    <p
-                      className="text-sm mb-4"
-                      style={{ color: "rgba(255,255,255,0.50)", fontFamily: FONT }}
-                    >
+                    <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.50)", fontFamily: FONT }}>
                       {b.sub}
                     </p>
                     <Link to="/shop">
@@ -639,9 +520,9 @@ const PromoCarousel = () => {
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold backdrop-blur-sm transition-all"
                         style={{
                           backgroundColor: `${b.accent}25`,
+                          border: "1px solid",
                           borderColor: `${b.accent}45`,
                           color: "#ffffff",
-                          border: "1px solid",
                           fontFamily: FONT,
                         }}
                         whileHover={{ backgroundColor: `${b.accent}45`, x: 4 }}
@@ -657,7 +538,7 @@ const PromoCarousel = () => {
         </div>
       </motion.div>
 
-      {/* Dot indicators: navy inactive, crimson active */}
+      {/* Dots: navy inactive, crimson active */}
       <div className="flex justify-center gap-1.5 mt-7">
         {banners.map((_, i) => (
           <motion.button
@@ -666,8 +547,7 @@ const PromoCarousel = () => {
             className="h-1.5 rounded-full transition-all duration-300"
             animate={{
               width: selected % banners.length === i ? 20 : 6,
-              backgroundColor:
-                selected % banners.length === i ? B.navyBright : B.warmGray,
+              backgroundColor: selected % banners.length === i ? B.navyBright : B.warmGray,
             }}
           />
         ))}
@@ -676,14 +556,11 @@ const PromoCarousel = () => {
   );
 };
 
-// ─── Editorial CTA — navy dark panel with crimson accents ─────────
+// ─── Editorial CTA ────────────────────────────────────────────────
 const EditorialCTA = () => {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const bgY = useSpring(useTransform(scrollYProgress, [0, 1], ["-8%", "8%"]), {
-    stiffness: 60,
-    damping: 20,
-  });
+  const bgY = useSpring(useTransform(scrollYProgress, [0, 1], ["-8%", "8%"]), { stiffness: 60, damping: 20 });
   const { ref: inRef, inView } = useReveal(0.3);
 
   return (
@@ -692,49 +569,37 @@ const EditorialCTA = () => {
         <div
           ref={inRef}
           className="relative overflow-hidden min-h-[400px] md:min-h-[460px] flex items-center"
-          style={{
-            borderRadius: "2rem",
-            border: `2px solid ${B.navyBright}20`,
-          }}
+          style={{ borderRadius: "2rem", border: `2px solid ${B.navyBright}20` }}
         >
-          {/* Parallax background image */}
+          {/* Parallax background */}
           <motion.div className="absolute inset-0 z-0" style={{ y: bgY }}>
             <div
               className="absolute inset-0 scale-110 bg-cover bg-center"
-              style={{
-                backgroundImage:
-                  "url('https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=2000')",
-              }}
+              style={{ backgroundImage: "url('https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=2000')" }}
             />
           </motion.div>
 
-          {/* Navy dark overlay — left-to-right fade */}
+          {/* Footer navy overlay — left-to-right */}
           <div
             className="absolute inset-0 z-[1]"
-            style={{
-              background: `linear-gradient(to right, ${B.navyDeep}f0 0%, ${B.navyDeep}b0 50%, ${B.navyDeep}30 100%)`,
-            }}
+            style={{ background: `linear-gradient(to right, ${B.navyDeep}f0 0%, ${B.navyCore}b0 50%, ${B.navyDeep}30 100%)` }}
           />
-          {/* Crimson radial warmth at left edge — brand accent */}
+          {/* Crimson radial at left edge */}
           <div
             className="absolute inset-0 z-[2]"
-            style={{
-              background: `radial-gradient(ellipse 55% 80% at 0% 50%, ${B.crimsonDeep}28, transparent)`,
-            }}
+            style={{ background: `radial-gradient(ellipse 55% 80% at 0% 50%, ${B.crimsonDeep}28, transparent)` }}
           />
-          {/* Decorative Leaf icon */}
           <div className="absolute right-12 top-10 opacity-[0.06] pointer-events-none">
             <Leaf className="h-48 w-48" style={{ color: B.navyLight }} />
           </div>
 
-          {/* Text content */}
           <motion.div
             initial={{ opacity: 0, x: -45 }}
             animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
             className="relative z-10 px-8 md:px-14 py-14 max-w-xl"
           >
-            {/* Eyebrow badge — crimson-tinted */}
+            {/* Eyebrow badge */}
             <div
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border backdrop-blur-md text-[10px] font-bold tracking-[0.2em] uppercase mb-7"
               style={{
@@ -747,47 +612,34 @@ const EditorialCTA = () => {
               <Sprout className="h-3 w-3" /> Start Shopping Today
             </div>
 
-            {/* Headline */}
             <h2
               className="font-extrabold leading-tight mb-5"
-              style={{
-                fontFamily: FONT,
-                fontSize: "clamp(2rem,4.5vw,3.5rem)",
-                color: "#ffffff",
-                letterSpacing: "-0.02em",
-              }}
+              style={{ fontFamily: FONT, fontSize: "clamp(2rem,4.5vw,3.5rem)", color: "#ffffff", letterSpacing: "-0.02em" }}
             >
               Your Table
               <br />
-              {/* Crimson accent on second line */}
+              {/* Pale navy → crimson soft sweep */}
               <span
                 style={{
                   WebkitTextFillColor: "transparent",
                   WebkitBackgroundClip: "text",
                   backgroundClip: "text",
-                  backgroundImage: `linear-gradient(135deg, #a5b4fc 0%, ${B.crimsonSoft} 100%)`,
+                  backgroundImage: `linear-gradient(135deg, ${B.navyPale} 0%, ${B.crimsonSoft} 100%)`,
                 }}
               >
                 Deserves Better.
               </span>
             </h2>
 
-            <p
-              className="text-base leading-relaxed mb-8 font-normal"
-              style={{ color: "rgba(255,255,255,0.52)", fontFamily: FONT }}
-            >
+            <p className="text-base leading-relaxed mb-8 font-normal" style={{ color: "rgba(255,255,255,0.52)", fontFamily: FONT }}>
               Farm-fresh. Affordable. Delivered to your door. Browse our full collection today.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* Primary CTA — navy solid */}
+              {/* Primary — footer navy solid */}
               <Link to="/shop">
                 <motion.button
-                  whileHover={{
-                    scale: 1.05,
-                    y: -3,
-                    boxShadow: `0 16px 44px ${B.navyBright}50`,
-                  }}
+                  whileHover={{ scale: 1.05, y: -3, boxShadow: `0 16px 44px ${B.navyBright}55` }}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full font-bold text-sm text-white"
                   style={{
@@ -796,20 +648,14 @@ const EditorialCTA = () => {
                     boxShadow: `0 4px 20px ${B.navyDeep}40, inset 0 1px 0 rgba(255,255,255,0.12)`,
                   }}
                 >
-                  <ShoppingBag className="h-4 w-4" /> Shop Now{" "}
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ShoppingBag className="h-4 w-4" /> Shop Now <ArrowRight className="h-3.5 w-3.5" />
                 </motion.button>
               </Link>
 
-              {/* Secondary CTA — crimson ghost */}
+              {/* Secondary — crimson ghost */}
               <Link to="/categories">
                 <motion.button
-                  whileHover={{
-                    scale: 1.05,
-                    y: -3,
-                    backgroundColor: `${B.crimsonDeep}25`,
-                    borderColor: `${B.crimsonCore}55`,
-                  }}
+                  whileHover={{ scale: 1.05, y: -3, backgroundColor: `${B.crimsonDeep}25`, borderColor: `${B.crimsonCore}55` }}
                   whileTap={{ scale: 0.97 }}
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-sm transition-all"
                   style={{
@@ -835,16 +681,13 @@ const EditorialCTA = () => {
 const Index = () => {
   const { products, categories } = useCart();
   const featured   = products.filter((p) => p.badge === "bestseller" && p.inStock).slice(0, 12);
-  const discounted = products.filter((p) => p.badge === "discount" && p.inStock);
+  const discounted = products.filter((p) => p.badge === "discount"   && p.inStock);
 
   return (
     <PageTransition>
       <Helmet>
         <title>Altaf Cash and Carry | Lahore's Finest Grocer</title>
-        <meta
-          name="description"
-          content="Farm-fresh groceries delivered in 30 minutes. Shop Altaf Cash & Carry."
-        />
+        <meta name="description" content="Farm-fresh groceries delivered in 30 minutes. Shop Altaf Cash & Carry." />
       </Helmet>
 
       <style>{`
