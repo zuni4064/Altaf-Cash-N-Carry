@@ -20,15 +20,17 @@ interface OrderItem {
     unit?: string;
   };
   quantity: number;
+  priceAtTime: number;       // price stored at order time — use this for display
+  variantLabel?: string;     // e.g. "1.5L", "500g"
 }
 
 interface OrderData {
   id: string;
   date: string;
   status: string;
-  subtotal: number;       // products-only total
-  deliveryCharge: number; // delivery fee
-  total: number;          // grand total = subtotal + deliveryCharge
+  subtotal: number;
+  deliveryCharge: number;
+  total: number;
   customerName: string;
   phone: string;
   address: string;
@@ -92,25 +94,62 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 /* ── Fetch order from Supabase ──────────────────────────────── */
+// FIX: items live in the `order_items` table, not in an `items` column on `orders`.
+// We fetch both in parallel, then join them. We use `price_at_time` from order_items
+// so variant prices (which have product.price = 0) display correctly.
 const fetchOrderFromDB = async (orderId: string): Promise<OrderData | null> => {
   try {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .single();
+    // Fetch order row + order_items rows in parallel
+    const [orderRes, itemsRes] = await Promise.all([
+      supabase.from("orders").select("*").eq("id", orderId).single(),
+      supabase.from("order_items").select("*").eq("order_id", orderId),
+    ]);
 
-    if (error || !data) return null;
+    if (orderRes.error || !orderRes.data) return null;
 
-    const rawItems = typeof data.items === "string"
-      ? JSON.parse(data.items)
-      : data.items || [];
+    const data      = orderRes.data;
+    const rawItems  = itemsRes.data ?? [];
 
-    // FIX: read delivery_charge and subtotal as distinct fields.
-    // Fall back gracefully for old orders that predate this fix.
+    // If there are items, fetch their product details in one query
+    let productMap: Record<string, any> = {};
+    if (rawItems.length > 0) {
+      const productIds = [...new Set(rawItems.map((i: any) => i.product_id))];
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, name, price, discount, image, unit")
+        .in("id", productIds);
+
+      for (const p of (products ?? [])) {
+        productMap[p.id] = p;
+      }
+    }
+
+    // Build typed OrderItem array using price_at_time (handles variants correctly)
+    const items: OrderItem[] = rawItems.map((row: any) => {
+      const product = productMap[row.product_id] ?? {
+        id:    row.product_id,
+        name:  row.variant_label ? `${row.product_name ?? "Product"} – ${row.variant_label}` : (row.product_name ?? "Product"),
+        price: row.price_at_time ?? 0,
+      };
+
+      // Build display name: append variant label if present
+      const displayName = row.variant_label
+        ? `${product.name} – ${row.variant_label}`
+        : product.name;
+
+      return {
+        product: {
+          ...product,
+          name: displayName,
+        },
+        quantity:     row.quantity      ?? 1,
+        priceAtTime:  row.price_at_time ?? 0,
+        variantLabel: row.variant_label ?? undefined,
+      };
+    });
+
     const deliveryCharge = data.delivery_charge ?? 0;
     const total          = data.total           ?? 0;
-    // If subtotal was stored use it; otherwise derive it from total - delivery_charge.
     const subtotal       = data.subtotal        ?? (total - deliveryCharge);
 
     return {
@@ -129,9 +168,10 @@ const fetchOrderFromDB = async (orderId: string): Promise<OrderData | null> => {
       phone:         data.phone          || "",
       address:       data.address        || "",
       paymentMethod: data.payment_method || "COD",
-      items:         rawItems,
+      items,
     };
-  } catch {
+  } catch (err) {
+    console.error("fetchOrderFromDB error:", err);
     return null;
   }
 };
@@ -152,7 +192,6 @@ const OrderConfirmation = () => {
   useEffect(() => {
     if (!orderId) { setLoading(false); return; }
 
-    // Always fetch fresh from DB so we get the correct subtotal / delivery_charge
     (async () => {
       setLoading(true);
       const fetched = await fetchOrderFromDB(orderId);
@@ -161,20 +200,29 @@ const OrderConfirmation = () => {
         setOrder(fetched);
       } else if (localOrder) {
         // Fallback: map local Order shape → OrderData shape
-        const dc = localOrder.deliveryCharge ?? 0;
-        const tot = localOrder.total ?? 0;
+        const dc  = localOrder.deliveryCharge ?? 0;
+        const tot = localOrder.total          ?? 0;
         setOrder({
-          id:            localOrder.id,
-          date:          localOrder.date ?? "",
-          status:        localOrder.status ?? "Pending",
-          subtotal:      localOrder.subtotal ?? (tot - dc),
+          id:             localOrder.id,
+          date:           localOrder.date          ?? "",
+          status:         localOrder.status        ?? "Pending",
+          subtotal:       localOrder.subtotal       ?? (tot - dc),
           deliveryCharge: dc,
-          total:         tot,
-          customerName:  localOrder.customerName  ?? "",
-          phone:         localOrder.phone         ?? "",
-          address:       localOrder.address       ?? "",
-          paymentMethod: localOrder.paymentMethod ?? "COD",
-          items:         localOrder.items         ?? [],
+          total:          tot,
+          customerName:   localOrder.customerName  ?? "",
+          phone:          localOrder.phone         ?? "",
+          address:        localOrder.address       ?? "",
+          paymentMethod:  localOrder.paymentMethod ?? "COD",
+          items: (localOrder.items ?? []).map((i: any) => ({
+            product:     i.product,
+            quantity:    i.quantity,
+            priceAtTime: i.selectedVariant
+              ? i.selectedVariant.price
+              : i.product.discount
+                ? Math.round(i.product.price * (1 - i.product.discount / 100))
+                : i.product.price,
+            variantLabel: i.selectedVariant?.label,
+          })),
         });
       }
 
@@ -216,11 +264,6 @@ const OrderConfirmation = () => {
       <Link to="/" className="text-primary underline">Go Home</Link>
     </div>
   );
-
-  const finalPrice = (item: OrderItem) =>
-    item.product.discount
-      ? Math.round(item.product.price * (1 - item.product.discount / 100))
-      : item.product.price;
 
   const currentStatus  = normalizeStatus(order.status);
   const isFreeDelivery = order.deliveryCharge === 0 && order.subtotal >= 2000;
@@ -349,19 +392,19 @@ const OrderConfirmation = () => {
               </div>
             ))}
 
-            {/* Items */}
+            {/* Items — use priceAtTime so variant prices are always correct */}
             {order.items.length > 0 && (
               <div className="mt-4 pt-4 border-t border-dashed border-border">
                 <h3 className="font-display font-bold mb-3 text-sm">Items Ordered</h3>
                 <div className="space-y-2">
                   {order.items.map((item, idx) => (
-                    <div key={item.product?.id ?? idx} className="flex justify-between text-sm">
+                    <div key={`${item.product?.id ?? idx}-${idx}`} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
                         {item.product?.name ?? "Product"}
                         <span className="text-foreground font-semibold ml-1">× {item.quantity}</span>
                       </span>
                       <span className="font-semibold">
-                        PKR {(finalPrice(item) * item.quantity).toLocaleString()}
+                        PKR {(item.priceAtTime * item.quantity).toLocaleString()}
                       </span>
                     </div>
                   ))}
@@ -369,7 +412,7 @@ const OrderConfirmation = () => {
               </div>
             )}
 
-            {/* Totals — FIX: use order.subtotal and order.deliveryCharge directly */}
+            {/* Totals */}
             <div className="mt-4 pt-4 border-t border-dashed border-border space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
@@ -396,8 +439,6 @@ const OrderConfirmation = () => {
             Thank you for your business! · altafcashncarry.pk
           </div>
         </motion.div>
-
-
 
         {/* ── Actions ── */}
         <motion.div

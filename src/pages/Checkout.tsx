@@ -239,16 +239,13 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
   const computeCharge = (lat: number, lng: number) =>
     isFree ? 0 : Math.min(Math.round(calcDist(STORE.lat, STORE.lng, lat, lng) * RATE_PER_KM), MAX_DELIVERY_CHARGE);
 
-  /* ── Reverse geocode helper ── */
-  // FIX 1: Added User-Agent header (required by Nominatim ToS), zoom=18 for
-  //         street-level precision, and addressdetails=1 for richer results.
   const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
         {
           headers: {
-            "User-Agent": "YourAppName/1.0 (contact@yourdomain.com)", // ← replace with your real app info
+            "User-Agent": "YourAppName/1.0 (contact@yourdomain.com)",
             "Accept-Language": "en",
           },
         }
@@ -260,10 +257,6 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
     }
   };
 
-  /* ── Auto-locate via GPS ── */
-  // FIX 2: maximumAge: 0  → never return a stale cached position.
-  // FIX 3: timeout: 12000 → fail gracefully if device takes too long.
-  // FIX 4: Better error messages distinguish permission-denied vs other failures.
   const handleGPS = () => {
     if (!navigator.geolocation) { toast.error("Geolocation not supported by your browser."); return; }
     setLocating(true);
@@ -292,13 +285,12 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
       },
       {
         enableHighAccuracy: true,
-        timeout: 12000,   // wait up to 12 s before failing
-        maximumAge: 0,    // never use a cached position — always get a fresh fix
+        timeout: 12000,
+        maximumAge: 0,
       }
     );
   };
 
-  /* ── Map pin handler ── */
   const handlePin = async (lat: number, lng: number) => {
     setMapPos([lat, lng]);
     const charge  = computeCharge(lat, lng);
@@ -314,13 +306,11 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
     return mapPos ? <Marker position={mapPos} /> : null;
   };
 
-  /* ── Final address = resolved address + optional notes ── */
   const buildFinalAddress = () =>
     locationNotes.trim()
       ? `${resolvedAddress} — Notes: ${locationNotes.trim()}`
       : resolvedAddress;
 
-  /* ── Submit ── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -393,7 +383,6 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
           Delivery Location
         </h3>
 
-        {/* Instruction */}
         {!locationSelected && (
           <motion.div
             initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
@@ -407,7 +396,6 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
           </motion.div>
         )}
 
-        {/* GPS + Map buttons */}
         <div className="grid grid-cols-2 gap-3">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
             <Button
@@ -437,12 +425,10 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
           </motion.div>
         </div>
 
-        {/* Desktop hint */}
         <p className="text-[11px] text-muted-foreground/70 text-center -mt-1">
           On desktop, <strong>Pin on Map</strong> gives more accurate results than Auto-Locate
         </p>
 
-        {/* Map */}
         <AnimatePresence>
           {showMap && (
             <motion.div
@@ -464,7 +450,6 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
           )}
         </AnimatePresence>
 
-        {/* Resolved address — read-only display */}
         <AnimatePresence>
           {locationSelected && resolvedAddress && (
             <motion.div
@@ -489,10 +474,8 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
           )}
         </AnimatePresence>
 
-        {/* Delivery charge badge */}
         <DeliveryBadge charge={finalCharge} subtotal={subtotal} />
 
-        {/* Optional notes — only shown after location is selected */}
         <AnimatePresence>
           {locationSelected && (
             <motion.div
@@ -644,13 +627,22 @@ const Checkout = () => {
             <div className="p-5">
               <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1 mb-4">
                 {items.map(item => {
-                  const p = item.product.discount
-                    ? Math.round(item.product.price * (1 - item.product.discount / 100))
-                    : item.product.price;
+                  // ✅ FIX: Use selectedVariant.price for variant products,
+                  // falling back to product price (with discount) for non-variant products.
+                  const p = item.selectedVariant
+                    ? item.selectedVariant.price
+                    : item.product.discount
+                      ? Math.round(item.product.price * (1 - item.product.discount / 100))
+                      : item.product.price;
+
+                  const displayName = item.selectedVariant
+                    ? `${item.product.name} – ${item.selectedVariant.label}`
+                    : item.product.name;
+
                   return (
-                    <div key={item.product.id} className="flex justify-between gap-2 text-sm">
+                    <div key={`${item.product.id}-${item.selectedVariant?.id ?? "base"}`} className="flex justify-between gap-2 text-sm">
                       <span className="text-muted-foreground truncate">
-                        {item.product.name}{" "}
+                        {displayName}{" "}
                         <span className="font-semibold text-foreground">×{item.quantity}</span>
                       </span>
                       <span className="font-semibold flex-shrink-0">PKR {(p * item.quantity).toLocaleString()}</span>
