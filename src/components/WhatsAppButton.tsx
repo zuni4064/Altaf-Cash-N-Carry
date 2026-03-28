@@ -8,7 +8,7 @@ const WhatsAppButton = () => (
       className="absolute bg-[#25D366] rounded-full w-full h-full"
     />
     <motion.a
-      href="https://wa.me/923219410035?text=Hello%2C%20I%20need%20help%20with%20my%20order."
+      href="https://wa.me/923062004403?text=Hello%2C%20I%20need%20help%20with%20my%20order."
       target="_blank"
       rel="noopener noreferrer"
       className="relative z-10 bg-[#25D366] text-white rounded-full p-4 shadow-xl hover:shadow-2xl transition-all"

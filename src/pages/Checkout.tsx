@@ -35,7 +35,120 @@ const RATE_PER_KM             = 15;
 const MAX_DELIVERY_CHARGE     = 350;
 const MINIMUM_ORDER_AMOUNT    = 500;
 
-/* ── Place Order button ───────────────────────────────────── */
+// ── WhatsApp numbers ────────────────────────────────────────────
+const ADMIN_WHATSAPP = "923062004403";
+
+/* ── Shared receipt payload type ────────────────────────────── */
+interface ReceiptPayload {
+  orderId: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  paymentMethod: string;
+  items: Array<{ name: string; quantity: number; price: number }>;
+  subtotal: number;
+  deliveryCharge: number;
+  total: number;
+}
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+const buildItemLines = (items: ReceiptPayload["items"]) =>
+  items
+    .map(item => `  • ${item.name} ×${item.quantity} — PKR ${(item.price * item.quantity).toLocaleString()}`)
+    .join("\n");
+
+const buildDeliveryLine = (deliveryCharge: number, subtotal: number) => {
+  const isFree = deliveryCharge === 0 && subtotal >= FREE_DELIVERY_THRESHOLD;
+  if (isFree) return "Delivery: FREE ✨ (order ≥ PKR 2,000)";
+  if (deliveryCharge > 0) return `Delivery: PKR ${deliveryCharge.toLocaleString()}`;
+  return "Delivery: PKR 0";
+};
+
+const openWhatsApp = (number: string, message: string) => {
+  const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
+/* ── 1. Admin receipt — full operational details ─────────────── */
+const sendAdminWhatsAppReceipt = (payload: ReceiptPayload) => {
+  const { orderId, customerName, phone, address, paymentMethod, items, subtotal, deliveryCharge, total } = payload;
+  const shortId = orderId.toString().slice(-10).toUpperCase();
+  const timeStr = new Date().toLocaleString("en-PK", {
+    weekday: "short", day: "numeric", month: "short",
+    hour: "2-digit", minute: "2-digit",
+  });
+
+  const message = `🛍️ *NEW ORDER — Altaf Cash & Carry*
+
+━━━━━━━━━━━━━━━━━━
+📋 *Order ID:* #${shortId}
+📅 *Time:* ${timeStr}
+━━━━━━━━━━━━━━━━━━
+
+👤 *Customer:* ${customerName}
+📞 *Phone:* ${phone}
+📍 *Address:* ${address}
+💳 *Payment:* ${paymentMethod}
+
+━━━━━━━━━━━━━━━━━━
+🧾 *Items Ordered:*
+${buildItemLines(items)}
+
+━━━━━━━━━━━━━━━━━━
+Subtotal: PKR ${Math.round(subtotal).toLocaleString()}
+${buildDeliveryLine(deliveryCharge, subtotal)}
+💰 *Grand Total: PKR ${Math.round(total).toLocaleString()}*
+━━━━━━━━━━━━━━━━━━
+
+Please confirm & process this order. ✅`;
+
+  openWhatsApp(ADMIN_WHATSAPP, message);
+};
+
+/* ── 2. Customer receipt — friendly confirmation ─────────────── */
+const sendCustomerWhatsAppReceipt = (payload: ReceiptPayload) => {
+  const { orderId, customerName, phone, items, subtotal, deliveryCharge, total, paymentMethod } = payload;
+
+  // Normalize customer phone to international format (PK)
+  let customerPhone = phone.replace(/\s+/g, "").replace(/^0/, "92");
+  // Strip any non-digit characters
+  customerPhone = customerPhone.replace(/\D/g, "");
+
+  const shortId = orderId.toString().slice(-10).toUpperCase();
+  const isFree  = deliveryCharge === 0 && subtotal >= FREE_DELIVERY_THRESHOLD;
+
+  const message = `🎉 *Order Confirmed!*
+Hi ${customerName}! Your order has been placed with *Altaf Cash & Carry*.
+
+━━━━━━━━━━━━━━━━━━
+📋 *Order ID:* #${shortId}
+━━━━━━━━━━━━━━━━━━
+
+🧾 *Your Items:*
+${buildItemLines(items)}
+
+━━━━━━━━━━━━━━━━━━
+Subtotal: PKR ${Math.round(subtotal).toLocaleString()}
+${buildDeliveryLine(deliveryCharge, subtotal)}
+💰 *Total: PKR ${Math.round(total).toLocaleString()}*
+💳 Payment: ${paymentMethod}
+━━━━━━━━━━━━━━━━━━
+${isFree ? "✨ *Free delivery unlocked on your order!*\n" : ""}
+🚚 We'll deliver your order shortly. For any queries, reply to this chat!
+
+Thank you for shopping with us 🛒`;
+
+  openWhatsApp(customerPhone, message);
+};
+
+/* ── Send both receipts ──────────────────────────────────────── */
+const sendWhatsAppReceipts = (payload: ReceiptPayload) => {
+  // Admin first, customer 800ms later (avoids both popups firing simultaneously)
+  sendAdminWhatsAppReceipt(payload);
+  setTimeout(() => sendCustomerWhatsAppReceipt(payload), 800);
+};
+
+/* ── Place Order button ───────────────────────────────────────── */
 const PlaceOrderButton = ({
   isSubmitting, paymentMethod, total, stripe,
 }: {
@@ -154,7 +267,7 @@ const PlaceOrderButton = ({
   );
 };
 
-/* ── Delivery badge ──────────────────────────────────────── */
+/* ── Delivery badge ──────────────────────────────────────────── */
 const DeliveryBadge = ({ charge, subtotal }: { charge: number; subtotal: number }) => {
   const isFree    = subtotal >= FREE_DELIVERY_THRESHOLD;
   const remaining = FREE_DELIVERY_THRESHOLD - subtotal;
@@ -189,7 +302,7 @@ interface CheckoutFormProps {
 }
 
 const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) => {
-  const { getTotal, placeOrder } = useCart();
+  const { getTotal, placeOrder, items } = useCart();
   const navigate  = useNavigate();
   const stripe    = useStripe();
   const elements  = useElements();
@@ -201,7 +314,7 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
   const [locating,   setLocating]   = useState(false);
   const [showMap,    setShowMap]    = useState(false);
 
-  /* ── Location state — address comes ONLY from GPS or map pin ── */
+  /* ── Location state ── */
   const [resolvedAddress,  setResolvedAddress]  = useState("");
   const [locationNotes,    setLocationNotes]    = useState("");
   const [locationSelected, setLocationSelected] = useState(false);
@@ -283,11 +396,7 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
         }
         setLocating(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 
@@ -311,6 +420,21 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
       ? `${resolvedAddress} — Notes: ${locationNotes.trim()}`
       : resolvedAddress;
 
+  /* ── Build cart items for WhatsApp receipt ────────────────── */
+  const buildReceiptItems = () =>
+    items.map(item => ({
+      name: item.selectedVariant
+        ? `${item.product.name} – ${item.selectedVariant.label}`
+        : item.product.name,
+      quantity: item.quantity,
+      price: item.selectedVariant
+        ? item.selectedVariant.price
+        : item.product.discount
+          ? Math.round(item.product.price * (1 - item.product.discount / 100))
+          : item.product.price,
+    }));
+
+  /* ══ handleSubmit ════════════════════════════════════════════ */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -337,12 +461,44 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
       if (error) { toast.error(error.message); setSubmitting(false); return; }
       try {
         const order = await placeOrder(form.name, form.email, form.phone, finalAddress, pm, "Paid", finalCharge);
-        if (order) { toast.success(`✅ Payment verified! (${stripepm.id.slice(0, 8)}…)`); navigate(`/order-confirmation/${order.id}`); }
+        if (order) {
+          toast.success(`✅ Payment verified! (${stripepm.id.slice(0, 8)}…)`);
+
+          // ── Send WhatsApp receipts to admin + customer ──────
+          sendWhatsAppReceipts({
+            orderId:        order.id,
+            customerName:   form.name,
+            phone:          form.phone,
+            address:        finalAddress,
+            paymentMethod:  "Card (Paid)",
+            items:          buildReceiptItems(),
+            subtotal,
+            deliveryCharge: finalCharge,
+            total:          grandTotal,
+          });
+
+          navigate(`/order-confirmation/${order.id}`);
+        }
       } catch { toast.error("Order failed."); } finally { setSubmitting(false); }
     } else {
       try {
         const order = await placeOrder(form.name, form.email, form.phone, finalAddress, pm, "Pending", finalCharge);
-        if (order) navigate(`/order-confirmation/${order.id}`);
+        if (order) {
+          // ── Send WhatsApp receipts to admin + customer ──────
+          sendWhatsAppReceipts({
+            orderId:        order.id,
+            customerName:   form.name,
+            phone:          form.phone,
+            address:        finalAddress,
+            paymentMethod:  "Cash on Delivery",
+            items:          buildReceiptItems(),
+            subtotal,
+            deliveryCharge: finalCharge,
+            total:          grandTotal,
+          });
+
+          navigate(`/order-confirmation/${order.id}`);
+        }
       } catch { toast.error("Order failed."); } finally { setSubmitting(false); }
     }
   };
@@ -554,12 +710,27 @@ const CheckoutForm = ({ deliveryCharge, setDeliveryCharge }: CheckoutFormProps) 
         </RadioGroup>
       </div>
 
+      {/* WhatsApp notice */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="flex items-start gap-2.5 p-3 rounded-xl bg-[#25D366]/10 border border-[#25D366]/25 text-xs text-emerald-700 dark:text-emerald-400"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-shrink-0 mt-0.5 text-[#25D366]">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+        <span>
+          After placing your order, <strong>WhatsApp will open twice</strong> — first to notify the admin, then to send <strong>you a confirmation receipt</strong>. Just tap Send on both.
+        </span>
+      </motion.div>
+
       <PlaceOrderButton isSubmitting={submitting} paymentMethod={pm} total={grandTotal} stripe={stripe} />
     </motion.form>
   );
 };
 
-/* ══ Main Checkout ════════════════════════════════════════ */
+/* ══ Main Checkout ════════════════════════════════════════════ */
 const Checkout = () => {
   const { items, getTotal } = useCart();
   const navigate  = useNavigate();
@@ -627,8 +798,6 @@ const Checkout = () => {
             <div className="p-5">
               <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1 mb-4">
                 {items.map(item => {
-                  // ✅ FIX: Use selectedVariant.price for variant products,
-                  // falling back to product price (with discount) for non-variant products.
                   const p = item.selectedVariant
                     ? item.selectedVariant.price
                     : item.product.discount
@@ -651,7 +820,6 @@ const Checkout = () => {
                 })}
               </div>
 
-              {/* Minimum order warning */}
               {subtotal < MINIMUM_ORDER_AMOUNT && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
@@ -675,7 +843,6 @@ const Checkout = () => {
                 </motion.div>
               )}
 
-              {/* Free delivery progress (only shown once minimum is met) */}
               {subtotal >= MINIMUM_ORDER_AMOUNT && !isFree && (
                 <div className="mb-4 p-3 bg-primary/5 rounded-xl border border-primary/15">
                   <p className="text-xs text-muted-foreground mb-1.5">
