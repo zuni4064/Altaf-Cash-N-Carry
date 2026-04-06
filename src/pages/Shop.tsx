@@ -58,6 +58,18 @@ const EmptyState = ({ query }: { query: string }) => (
   </motion.div>
 );
 
+/* ── Stock check helper ─────────────────────────────────── */
+const isProductInStock = (p: any): boolean => {
+  const pHasVariants = (p.variants?.length ?? 0) > 0;
+  const totalStock = pHasVariants
+    ? p.variants!.reduce((sum: number, v: any) => sum + v.stock, 0)
+    : (p.stock ?? 0);
+  if (!p.inStock) return false;
+  if (pHasVariants && !p.variants!.some((v: any) => v.stock > 0)) return false;
+  if (!pHasVariants && totalStock === 0) return false;
+  return true;
+};
+
 /* ════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════ */
@@ -67,7 +79,6 @@ const Shop = () => {
   const [sortBy,      setSortBy]      = useState<SortKey>("default");
   const [viewMode,    setViewMode]    = useState<"grid" | "list">("grid");
   const [showSort,    setShowSort]    = useState(false);
-  const [showMobileFilter, setShowMobileFilter] = useState(false);
 
   const { products, categories } = useCart();
   const activeCategory = searchParams.get("category") || "all";
@@ -78,7 +89,6 @@ const Shop = () => {
       ? products
       : products.filter(p => p.category === activeCategory);
     
-    // Filter by subcategory if one is selected (case-insensitive)
     if (activeSubCategory !== "all") {
       list = list.filter(p => p.subCategory?.trim().toLowerCase() === activeSubCategory.trim().toLowerCase());
     }
@@ -91,12 +101,10 @@ const Shop = () => {
     return list;
   }, [activeCategory, activeSubCategory, search, sortBy, products]);
 
-  // Derived subcategories for the currently selected main category
   const availableSubCategories = useMemo(() => {
     if (activeCategory === "all") return [];
     const prodsInCategory = products.filter(p => p.category === activeCategory);
-    // Normalize to title case to avoid duplicate pills for same sub-category with different capitalization
-    const subsMap = new Map<string, string>(); // key = lowercase, value = display string
+    const subsMap = new Map<string, string>();
     prodsInCategory.forEach(p => {
       if (p.subCategory && p.subCategory.trim() !== "") {
         const key = p.subCategory.trim().toLowerCase();
@@ -109,7 +117,6 @@ const Shop = () => {
   const setCategory = (id: string) => {
     if (id === "all") searchParams.delete("category");
     else searchParams.set("category", id);
-    // When changing main category, reset the subcategory
     searchParams.delete("subCategory");
     setSearchParams(searchParams);
   };
@@ -130,8 +137,8 @@ const Shop = () => {
 
   const hasFilters = search || sortBy !== "default" || activeCategory !== "all" || activeSubCategory !== "all";
 
-  /* Quick-stat counts */
-  const inStockCount  = filtered.filter(p => p.inStock).length;
+  /* ── Fixed stat counts ── */
+  const inStockCount  = filtered.filter(p => isProductInStock(p)).length;
   const discountCount = filtered.filter(p => p.badge === "discount").length;
 
   return (
@@ -143,7 +150,6 @@ const Shop = () => {
 
       {/* ── HERO BANNER ──────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-primary/5 border-b border-border/40">
-        {/* Decorative blobs */}
         <motion.div
           animate={{ x: [0, 20, 0], y: [0, -15, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
@@ -158,7 +164,6 @@ const Shop = () => {
         <div className="container py-10 md:py-14 relative z-10">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
-              {/* Eyebrow */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -173,7 +178,6 @@ const Shop = () => {
                 Altaf Cash &amp; Carry
               </motion.div>
 
-              {/* Title */}
               <motion.h1
                 initial={{ opacity: 0, y: 22 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -201,9 +205,9 @@ const Shop = () => {
               className="flex gap-3"
             >
               {[
-                { icon: ShoppingBag,  value: products.length, label: "Products",    color: "bg-primary/10 text-primary"    },
-                { icon: Sparkles,     value: inStockCount,    label: "In Stock",    color: "bg-success/10 text-success"    },
-                { icon: Tag,          value: discountCount,   label: "On Sale",     color: "bg-destructive/10 text-destructive" },
+                { icon: ShoppingBag, value: filtered.length, label: "Products",  color: "bg-primary/10 text-primary"         },
+                { icon: Sparkles,    value: inStockCount,    label: "In Stock",  color: "bg-success/10 text-success"         },
+                { icon: Tag,         value: discountCount,   label: "On Sale",   color: "bg-destructive/10 text-destructive" },
               ].map((s, i) => (
                 <motion.div
                   key={s.label}
@@ -229,7 +233,6 @@ const Shop = () => {
           transition={{ delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-3 mb-6"
         >
-          {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input

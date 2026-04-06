@@ -53,6 +53,29 @@ type DbProduct = {
 
 type Category = { id: string; name: string; image?: string };
 
+/* ── Shared stock-status helper ──────────────────────────── */
+const getStockStatus = (product: Product) => {
+  const pHasVariants = (product.variants?.length ?? 0) > 0;
+  const totalStock = pHasVariants
+    ? product.variants!.reduce((sum, v) => sum + v.stock, 0)
+    : (product.stock ?? 0);
+
+  // Out of stock: manual flag off, OR variant product with all variants at 0,
+  // OR non-variant product with stock === 0
+  const isOut =
+    !product.inStock ||
+    (pHasVariants && !product.variants!.some(v => v.stock > 0)) ||
+    (!pHasVariants && totalStock === 0);
+
+  const isPartialOut = pHasVariants && !isOut && product.variants!.some(v => v.stock === 0);
+  const isLow = !isOut && totalStock > 0 && totalStock <= 5;
+  const isPartialLow =
+    pHasVariants && !isLow && !isOut && !isPartialOut &&
+    product.variants!.some(v => v.stock > 0 && v.stock <= 5);
+
+  return { pHasVariants, totalStock, isOut, isPartialOut, isLow, isPartialLow };
+};
+
 /* ── Fetch & merge products ── */
 const fetchAndMergeProducts = async (): Promise<Product[]> => {
   const staticMap = new Map(defaultProducts.map(p => [p.id, p]));
@@ -105,7 +128,7 @@ const fetchAndMergeProducts = async (): Promise<Product[]> => {
   return defaultProducts.map(p => ({ ...p, image: getImageUrl(p.image), stock: p.stock ?? 0 }));
 };
 
-/* ── Stat card — no entrance animation replay ───────────── */
+/* ── Stat card ───────────────────────────────────────────── */
 let statsMounted = false;
 const StatCard = ({
   label, value, icon: Icon, color, bg, onClick, active,
@@ -140,31 +163,12 @@ const ProductCard = ({
   onEdit: () => void; onDelete: () => void;
   onToggleStock: () => void; isSaving: boolean;
 }) => {
-  const hasVariants = (product.variants?.length ?? 0) > 0;
-  
-  // A product is entirely out of stock if:
-  // - The master inStock flag is false (admin manually disabled), OR
-  // - For variant products: all variants have 0 stock.
-  // The master inStock flag acts as a global on/off override for ALL products.
-  const isOut = !product.inStock || (hasVariants && !product.variants!.some(v => v.stock > 0));
-  
-  // A product has a PARTIAL stockout if it IS NOT completely out, but AT LEAST ONE variant is out
-  const isPartialOut = hasVariants && !isOut && product.variants!.some(v => v.stock === 0);
-  
-  const totalStock = hasVariants
-    ? product.variants!.reduce((sum, v) => sum + v.stock, 0)
-    : (product.stock ?? 0);
-
-  // A product is entirely low stock if total stock <= 5 (and not 0)
-  const isLow = (!isOut && totalStock > 0 && totalStock <= 5);
-  
-  // A product has a PARTIAL low stock if it's not entirely low, but AT LEAST ONE variant is low (and not 0)
-  const isPartialLow = hasVariants && !isLow && !isOut && !isPartialOut && product.variants!.some(v => v.stock > 0 && v.stock <= 5);
+  const { pHasVariants, totalStock, isOut, isPartialOut, isLow, isPartialLow } = getStockStatus(product);
 
   const stockPct = Math.min((totalStock / 50) * 100, 100);
   const badge = product.badge ? BADGE_META[product.badge] : null;
 
-  const displayPrice = hasVariants
+  const displayPrice = pHasVariants
     ? Math.min(...product.variants!.map(v => v.price))
     : product.price;
 
@@ -242,7 +246,7 @@ const ProductCard = ({
         </div>
 
         {/* Discount ribbon */}
-        {product.discount && !isOut && !hasVariants && (
+        {product.discount && !isOut && !pHasVariants && (
           <div className="absolute bottom-0 right-0 bg-red-500 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-tl-xl">
             −{product.discount}%
           </div>
@@ -256,10 +260,10 @@ const ProductCard = ({
         <h3 className="font-bold text-xs md:text-sm leading-snug line-clamp-2 mb-2">{product.name}</h3>
         <div className="flex items-baseline gap-1 mb-2.5">
           <span className="font-extrabold text-primary text-sm md:text-base">
-            {hasVariants && "from "}PKR {displayPrice.toLocaleString()}
+            {pHasVariants && "from "}PKR {displayPrice.toLocaleString()}
           </span>
-          {!hasVariants && <span className="text-muted-foreground text-[10px]">/{product.unit}</span>}
-          {product.discount && !hasVariants && (
+          {!pHasVariants && <span className="text-muted-foreground text-[10px]">/{product.unit}</span>}
+          {product.discount && !pHasVariants && (
             <span className="text-muted-foreground text-[10px] line-through ml-auto">
               {Math.round(product.price / (1 - product.discount / 100)).toLocaleString()}
             </span>
@@ -268,7 +272,7 @@ const ProductCard = ({
         <div className="space-y-1">
           <div className="flex justify-between text-[10px] font-semibold">
             <span className={isOut ? "text-destructive" : isLow ? "text-amber-600" : "text-muted-foreground"}>
-              {hasVariants ? `${product.variants!.length} sizes - ` : ""}
+              {pHasVariants ? `${product.variants!.length} sizes - ` : ""}
               {isOut ? "No stock" : `${totalStock} units`}
             </span>
             <span className="text-muted-foreground">{Math.round(stockPct)}%</span>
@@ -390,12 +394,14 @@ const ProductManagement = () => {
 
   const quickToggle = (product: Product) => {
     const newIn = !product.inStock;
-    const hasProductVariants = (product.variants?.length ?? 0) > 0;
+    const productHasVariants = (product.variants?.length ?? 0) > 0;
     // For variant products: only flip the master in_stock flag; leave variant stocks intact.
-    // For regular products: also zero-out / restore the stock number.
-    const newStock = hasProductVariants
-      ? (product.stock ?? 0)          // variant products – don't change stock value
-      : newIn ? Math.max(product.stock ?? 1, 1) : 0;
+    // For regular products: zero-out stock when marking out; restore to current stock when marking in.
+    const newStock = productHasVariants
+      ? (product.stock ?? 0)
+      : newIn
+        ? (product.stock ?? 0)   // restore to whatever stock currently is (don't fake a value)
+        : 0;
     toggleMutation.mutate({ id: product.id, newIn, newStock });
   };
 
@@ -453,9 +459,7 @@ const ProductManagement = () => {
       if (error) throw error;
       
       if (hasVariants) {
-        // Delete existing variants
         await supabase.from("product_variants").delete().eq("product_id", id);
-        // Insert new variants
         if (formVariants.length > 0) {
           const variantsToInsert = formVariants.map(v => ({
             product_id: id,
@@ -469,7 +473,6 @@ const ProductManagement = () => {
           if (variantError) throw variantError;
         }
       } else {
-        // If switched to no variants, delete any existing ones
         await supabase.from("product_variants").delete().eq("product_id", id);
       }
       
@@ -524,41 +527,23 @@ const ProductManagement = () => {
     addCategoryMutation.mutate({ id, name: trimmed, image: newCatImage.trim() });
   };
 
-  /* ── Derived stats ── */
+  /* ── Derived stats — uses shared helper ── */
   const stats = useMemo(() => {
     let inStock = 0, outOfStock = 0, lowStock = 0;
     productList.forEach(p => {
-      const pHasVariants = (p.variants?.length ?? 0) > 0;
-      const isOut = !p.inStock || (pHasVariants && !p.variants!.some(v => v.stock > 0));
-      const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
-      const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
-      const isLow = !isOut && totalStock > 0 && totalStock <= 5;
-      const isPartialLow = pHasVariants && !isLow && !isOut && !isPartialOut && p.variants!.some(v => v.stock > 0 && v.stock <= 5);
-
-      // If a product is completely out or partially out, we count it in "Out Of Stock" stats
+      const { isOut, isPartialOut, isLow, isPartialLow } = getStockStatus(p);
       if (isOut || isPartialOut) outOfStock++;
-      // If it's low (and not fully/partially out) OR partially low, we count it in low stock
       else if (isLow || isPartialLow) lowStock++;
-      // Otherwise, it's fully in stock
       else inStock++;
     });
-
     return { total: productList.length, inStock, outOfStock, lowStock };
   }, [productList]);
 
+  /* ── Filtered list — uses shared helper ── */
   const filtered = useMemo(() => {
     return productList
       .filter(p => {
-        const pHasVariants = (p.variants?.length ?? 0) > 0;
-        const totalStock = pHasVariants ? p.variants!.reduce((acc, v) => acc + v.stock, 0) : (p.stock ?? 0);
-        const isOut = !p.inStock || (pHasVariants && !p.variants!.some(v => v.stock > 0));
-        const isPartialOut = pHasVariants && !isOut && p.variants!.some(v => v.stock === 0);
-        const isLow = !isOut && totalStock > 0 && totalStock <= 5;
-        const isPartialLow = pHasVariants && !isLow && !isOut && !isPartialOut && p.variants!.some(v => v.stock > 0 && v.stock <= 5);
-
-        // If filtering by 'out', include fully out OR partially out.
-        // If filtering by 'in', include fully in stock OR partially out (since they hold some stock).
-        // If filtering by 'low', include fully low OR partially low.
+        const { totalStock, isOut, isPartialOut, isLow, isPartialLow } = getStockStatus(p);
         return (
           p.name.toLowerCase().includes(search.toLowerCase()) &&
           (catFilter === "all" || p.category === catFilter) &&
@@ -569,12 +554,10 @@ const ProductManagement = () => {
         );
       })
       .sort((a, b) => {
+        const { totalStock: aStock, isOut: aOut } = getStockStatus(a);
+        const { totalStock: bStock, isOut: bOut } = getStockStatus(b);
         const aHasV = (a.variants?.length ?? 0) > 0;
         const bHasV = (b.variants?.length ?? 0) > 0;
-        const aStock = aHasV ? a.variants!.reduce((acc, v) => acc + v.stock, 0) : (a.stock ?? 0);
-        const bStock = bHasV ? b.variants!.reduce((acc, v) => acc + v.stock, 0) : (b.stock ?? 0);
-        const aOut = !a.inStock || (aHasV && !a.variants!.some(v => v.stock > 0));
-        const bOut = !b.inStock || (bHasV && !b.variants!.some(v => v.stock > 0));
 
         if (aOut && !bOut) return -1;
         if (!aOut && bOut) return  1;
