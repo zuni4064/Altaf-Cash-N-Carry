@@ -117,7 +117,7 @@ const sendCustomerWhatsAppReceipt = (payload: ReceiptPayload) => {
   const shortId = orderId.toString().slice(-10).toUpperCase();
   const isFree  = deliveryCharge === 0 && subtotal >= FREE_DELIVERY_THRESHOLD;
 
-  const message = `🎉 *Order Confirmed!*
+  const message = `🎉 *Order Placed!*
 Hi ${customerName}! Your order has been placed with *Altaf Cash & Carry*.
 
 ━━━━━━━━━━━━━━━━━━
