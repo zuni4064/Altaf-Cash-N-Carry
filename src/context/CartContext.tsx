@@ -539,7 +539,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               </div>
               <div style="padding:32px;">
                 <p style="font-size:16px;color:#333;">Hi ${name},</p>
-                <p style="color:#666;">Thank you for your order! Here's your receipt:</p>
+                <p style="color:#666;">We've received your order and will confirm it shortly. Here's your receipt:</p>
                 <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin:20px 0;">
                   <p style="margin:4px 0;"><strong>Order ID:</strong> ${orderId}</p>
                   <p style="margin:4px 0;"><strong>Payment:</strong> ${paymentStatus} (${paymentMethod})</p>
@@ -576,7 +576,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const pKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
           if (sId && tId && pKey) {
             emailjs
-              .send(sId, tId, { subject: "Order Confirmed", to_email: email, order_id: orderId, html_content: html }, pKey)
+              .send(sId, tId, { subject: "Order Received — We'll confirm shortly 📦", to_email: email, order_id: orderId, html_content: html }, pKey)
               .catch(err => console.error("Email send failed:", err));
           }
         } catch (emailErr) {
