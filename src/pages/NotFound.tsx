@@ -1,24 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
-// pages/Home.tsx
-import { Helmet } from 'react-helmet-async';
 
-export default function Home() {
-  return (
-    <>
-      <Helmet>
-        <title>Altaf Cash N Carry | Fresh Groceries in Lahore</title>
-        <meta name="description" content="Shop fresh groceries, household essentials and more at Altaf Cash N Carry — Central Park Society, Lahore. Order online with home delivery." />
-        <meta property="og:title" content="Altaf Cash N Carry | Fresh Groceries in Lahore" />
-        <meta property="og:description" content="Your one-stop shop for quality groceries in Lahore since 2019." />
-        <meta property="og:image" content="https://altaf-cash-n-carry.vercel.app/og-image.jpg" />
-        <meta property="og:url" content="https://altaf-cash-n-carry.vercel.app" />
-        <link rel="canonical" href="https://altaf-cash-n-carry.vercel.app" />
-      </Helmet>
-      {/* rest of your page */}
-    </>
-  );
-}
 const NotFound = () => {
   const location = useLocation();
 
