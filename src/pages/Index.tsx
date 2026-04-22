@@ -688,6 +688,8 @@ const Index = () => {
       <Helmet>
         <title>Altaf Cash and Carry | Lahore's Finest Grocer</title>
         <meta name="description" content="Farm-fresh groceries delivered in 30 minutes. Shop Altaf Cash & Carry." />
+        <link rel="canonical" href="https://altaf-cash-n-carry.vercel.app/" />
+        <meta property="og:url" content="https://altaf-cash-n-carry.vercel.app/" />
       </Helmet>
 
       <style>{`
