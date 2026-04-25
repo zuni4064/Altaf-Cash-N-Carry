@@ -28,7 +28,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-const stripePromise = loadStripe("pk_test_TYooMQauvdEDq54NiTphI7jx");
+const stripePromise = loadStripe("pk_test_51TAtdXKKsHdg4yCLOgVFQ7oezGTSfUSMlb2NopFuYDCX9OLobCpz7r4dAL2eXSbtaT0B2YfTLZ6Os9BJwUe68SKi00CHqvNQT3");
 
 const FREE_DELIVERY_THRESHOLD = 2000;
 const RATE_PER_KM             = 15;
